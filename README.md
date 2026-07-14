@@ -1,5 +1,5 @@
 
-# FreeformUnbounded
+# MiFreeformUnbounded
 
 面向 HyperOS 3 的自由窗口边界模块，完全使用 Kotlin 和 Modern LibXposed API 102。
 
