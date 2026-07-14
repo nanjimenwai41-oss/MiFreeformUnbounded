@@ -1,0 +1,28 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+**/build/
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Android / IDE 临时文件
+.gradle/
+build/
+**/build/
+.idea/
+.kotlin/
+*.log
+
+# 反编译产生的超大文本文件，不能上传 GitHub
+analysis/miuisystemui/classes3_full.dump.txt
+
