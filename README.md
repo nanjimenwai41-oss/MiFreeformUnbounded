@@ -21,7 +21,7 @@
 
 本机默认使用 Android Studio 自带的 JBR：`D:/Program Files/Android/Android Studio/jbr`。
 
-##作者说明
+## 作者说明
 本项目目前完全使用Codex完成，望大佬们谅解。
 目前存在的BUG：
 1.小窗形成瞬间会闪烁
