@@ -30,5 +30,12 @@ internal object BoundsPolicy {
         MAX_MOVABLE_BOTTOM,
     )
 
+    fun keepHorizontalDragTarget(result: Rect, dragTarget: Rect): Rect = Rect(
+        dragTarget.left,
+        result.top,
+        dragTarget.right,
+        result.bottom,
+    )
+
     private const val MAX_MOVABLE_BOTTOM = 1_000_000
 }

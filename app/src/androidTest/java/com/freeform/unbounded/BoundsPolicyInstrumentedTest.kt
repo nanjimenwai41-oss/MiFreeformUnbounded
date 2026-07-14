@@ -22,4 +22,29 @@ class BoundsPolicyInstrumentedTest {
         assertTrue(expanded.width() >= 200_000)
         assertTrue(expanded.height() >= 200_000)
     }
+
+    @Test
+    fun movableExpansionReleasesBottomWithoutChangingHorizontalBounds() {
+        val source = Rect(12, 48, 1080, 2200)
+
+        val expanded = BoundsPolicy.expandMovable(source)
+
+        assertNotSame(source, expanded)
+        assertEquals(Rect(12, 48, 1080, 2200), source)
+        assertEquals(source.left, expanded.left)
+        assertEquals(source.top, expanded.top)
+        assertEquals(source.right, expanded.right)
+        assertTrue(expanded.bottom > source.bottom)
+        assertEquals(1_000_000, expanded.bottom)
+    }
+
+    @Test
+    fun horizontalDragTargetKeepsOriginalXAndSystemY() {
+        val result = Rect(40, 120, 580, 900)
+        val dragTarget = Rect(-240, 48, 300, 828)
+
+        val adjusted = BoundsPolicy.keepHorizontalDragTarget(result, dragTarget)
+
+        assertEquals(Rect(-240, 120, 300, 900), adjusted)
+    }
 }
