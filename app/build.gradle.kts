@@ -15,8 +15,8 @@ android {
         applicationId = "com.freeform.unbounded"
         minSdk = 29
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.4.0-unbounded-move"
+        versionCode = 6
+        versionName = "1.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

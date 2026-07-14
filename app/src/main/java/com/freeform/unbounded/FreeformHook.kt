@@ -10,11 +10,13 @@ import io.github.libxposed.api.XposedModuleInterface.SystemServerStartingParam
 import java.lang.reflect.Method
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.roundToInt
 
 /** Modern LibXposed API 102 entry point for HyperOS 3 freeform-window hooks. */
 class FreeformHook : XposedModule() {
     private val installedHookIds = ConcurrentHashMap.newKeySet<String>()
     private val logCounts = ConcurrentHashMap<String, AtomicInteger>()
+    private val horizontalDragTarget = ThreadLocal<Rect?>()
 
     override fun onModuleLoaded(param: ModuleLoadedParam) {
         log(
@@ -130,6 +132,127 @@ class FreeformHook : XposedModule() {
                                 expanded
                             }
                         }
+
+                        HookAction.FREE_HORIZONTAL_FRICTION -> {
+                            val dragTarget = chain.getArg(2) as? Rect
+                            val isMini = chain.getArg(5) as? Boolean ?: false
+                            val result = chain.proceed()
+                            if (result !is Rect || dragTarget == null || isMini) {
+                                result
+                            } else {
+                                val adjusted = BoundsPolicy.keepHorizontalDragTarget(result, dragTarget)
+                                logLimited(
+                                    Log.DEBUG,
+                                    hookId,
+                                    "Released horizontal friction ${methodSignature(method)}: $result -> $adjusted",
+                                )
+                                adjusted
+                            }
+                        }
+
+                        HookAction.PRESERVE_HORIZONTAL_DRAG_SESSION -> {
+                            val (taskInfo, dragTarget) = when (method.name) {
+                                "adjustBoundsAndScalePostUpdate" -> {
+                                    chain.getArg(2) to (chain.getArg(1) as? Rect)
+                                }
+                                "adjustFreeformBoundsAndScale" -> {
+                                    chain.getArg(0) to (chain.getArg(2) as? Rect)
+                                }
+                                else -> null to null
+                            }
+                            if (dragTarget == null || !shouldPreserveHorizontalDrag(taskInfo)) {
+                                chain.proceed()
+                            } else {
+                                val previous = horizontalDragTarget.get()
+                                horizontalDragTarget.set(Rect(dragTarget))
+                                try {
+                                    logLimited(
+                                        Log.DEBUG,
+                                        hookId,
+                                        "Started horizontal drag session ${methodSignature(method)}: $dragTarget",
+                                    )
+                                    chain.proceed()
+                                } finally {
+                                    if (previous == null) {
+                                        horizontalDragTarget.remove()
+                                    } else {
+                                        horizontalDragTarget.set(previous)
+                                    }
+                                }
+                            }
+                        }
+
+                        HookAction.PRESERVE_HORIZONTAL_STABLE_OFFSET -> {
+                            val dragTarget = horizontalDragTarget.get()
+                            val currentBounds = chain.getArg(0) as? Rect
+                            if (dragTarget == null || currentBounds == null) {
+                                chain.proceed()
+                            } else {
+                                val result = chain.proceed()
+                                val clamped = Rect(currentBounds)
+                                currentBounds.set(BoundsPolicy.keepHorizontalDragTarget(currentBounds, dragTarget))
+                                logLimited(
+                                    Log.DEBUG,
+                                    hookId,
+                                    "Preserved horizontal stable offset ${methodSignature(method)}: " +
+                                        "$clamped -> $currentBounds",
+                                )
+                                result
+                            }
+                        }
+
+                        HookAction.PRESERVE_HORIZONTAL_ANIM_TARGET_PARAM -> {
+                            val dragTarget = horizontalDragTarget.get()
+                            val targetBounds = chain.getArg(0) as? Rect
+                            if (dragTarget == null || targetBounds == null) {
+                                chain.proceed()
+                            } else {
+                                val original = Rect(targetBounds)
+                                targetBounds.set(BoundsPolicy.keepHorizontalDragTarget(targetBounds, dragTarget))
+                                logLimited(
+                                    Log.DEBUG,
+                                    hookId,
+                                    "Preserved horizontal animation target ${methodSignature(method)}: " +
+                                        "$original -> $targetBounds",
+                                )
+                                chain.proceed()
+                            }
+                        }
+
+                        HookAction.PRESERVE_HORIZONTAL_MOVE_FINAL_BOUNDS -> {
+                            val taskInfo = chain.getArg(0)
+                            val actionMode = chain.getArg(1) as? Int ?: -1
+                            val x = chain.getArg(2) as? Float
+                            val y = chain.getArg(3) as? Float
+                            val downPoint = chain.getArg(6) as? android.graphics.PointF
+                            val downBounds = invokeRectNoArg(taskInfo, "getDownBounds")?.let(::Rect)
+                            val result = chain.proceed()
+                            if (
+                                result !is Rect ||
+                                actionMode != ACTION_MODE_UP ||
+                                x == null ||
+                                y == null ||
+                                downPoint == null ||
+                                downBounds == null ||
+                                !shouldPreserveHorizontalDrag(taskInfo)
+                            ) {
+                                result
+                            } else {
+                                val dragTarget = Rect(downBounds)
+                                dragTarget.offset(
+                                    (x - downPoint.x).roundToInt(),
+                                    (y - downPoint.y).roundToInt(),
+                                )
+                                val adjusted = BoundsPolicy.keepHorizontalDragTarget(result, dragTarget)
+                                logLimited(
+                                    Log.DEBUG,
+                                    hookId,
+                                    "Preserved horizontal move final bounds ${methodSignature(method)}: " +
+                                        "$result -> $adjusted target=$dragTarget",
+                                )
+                                adjusted
+                            }
+                        }
                     }
                 }
             log(Log.INFO, TAG, "Hooked ${profile.className}#${methodSignature(method)}")
@@ -163,14 +286,45 @@ class FreeformHook : XposedModule() {
         if (error == null) log(priority, TAG, message + suffix) else log(priority, TAG, message + suffix, error)
     }
 
+    private fun shouldPreserveHorizontalDrag(taskInfo: Any?): Boolean {
+        if (taskInfo == null) return false
+        return !PIN_OR_MINI_STATE_METHODS.any { methodName -> invokeBooleanNoArg(taskInfo, methodName) }
+    }
+
+    private fun invokeBooleanNoArg(target: Any, methodName: String): Boolean = runCatching {
+        val method = target.javaClass.methods.firstOrNull { method ->
+            method.name == methodName &&
+                method.parameterTypes.isEmpty() &&
+                method.returnType == Boolean::class.javaPrimitiveType
+        } ?: return@runCatching false
+        method.invoke(target) as? Boolean ?: false
+    }.getOrDefault(false)
+
+    private fun invokeRectNoArg(target: Any?, methodName: String): Rect? = runCatching {
+        if (target == null) return@runCatching null
+        val method = target.javaClass.methods.firstOrNull { method ->
+            method.name == methodName &&
+                method.parameterTypes.isEmpty() &&
+                method.returnType == Rect::class.java
+        } ?: return@runCatching null
+        method.invoke(target) as? Rect
+    }.getOrNull()
+
     companion object {
         private const val TAG = "FreeformUnbounded"
         private const val PACKAGE_SYSTEM_UI = "com.android.systemui"
         private const val PROCESS_SYSTEM_SERVER = "android/system_server"
         private const val MAX_LOGS_PER_KEY = 3
         private const val MAX_DIAGNOSTIC_METHODS = 30
+        private const val ACTION_MODE_UP = 1
         private val ADAPTATION_NAME_PARTS = listOf(
             "freeform", "pin", "constraint", "bound", "move", "accessible", "limit",
+        )
+        private val PIN_OR_MINI_STATE_METHODS = listOf(
+            "isMiniState",
+            "isMiniPinedState",
+            "isNormalPinedState",
+            "isFreeformEludeAnimation",
         )
     }
 }
