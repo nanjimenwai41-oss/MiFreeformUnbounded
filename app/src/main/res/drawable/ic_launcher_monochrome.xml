@@ -4,7 +4,7 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Complete white line art kept inside the adaptive-icon safe zone. -->
+    <!-- Alpha-only line mask; Android/MIUI launchers apply the Monet color. -->
     <path
         android:fillColor="#00000000"
         android:pathData="M32,29L73,29Q79,29 79,35L79,72Q79,78 73,78L32,78Q26,78 26,72L26,35Q26,29 32,29Z"

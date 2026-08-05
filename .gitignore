@@ -26,3 +26,7 @@ build/
 # 反编译产生的超大文本文件，不能上传 GitHub
 analysis/miuisystemui/classes3_full.dump.txt
 
+# 本地调试与设备日志，不属于发布源码
+.codex-tmp/
+CrushLog/
+log.txt

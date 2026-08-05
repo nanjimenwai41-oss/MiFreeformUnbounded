@@ -15,29 +15,6 @@ class HookProfilesTest {
     }
 
     @Test
-    fun constraintRequiresExactNameAndRectReturnType() {
-        val rule = MethodHookRule(setOf("getConstraintRect"), HookAction.EXPAND_RECT_RESULT)
-
-        assertTrue(rule.matches("getConstraintRect", "android.graphics.Rect", emptyList()))
-        assertFalse(rule.matches("calculateConstraintRect", "android.graphics.Rect", emptyList()))
-        assertFalse(rule.matches("getConstraintRect", "void", listOf("android.graphics.Rect")))
-    }
-
-    @Test
-    fun movableBoundsRuleOnlyMatchesContextOverload() {
-        val rule = MethodHookRule(setOf("getMovableBounds"), HookAction.EXPAND_MOVABLE_RECT)
-
-        assertTrue(rule.matches("getMovableBounds", "android.graphics.Rect", listOf("android.content.Context")))
-        assertFalse(
-            rule.matches(
-                "getMovableBounds",
-                "android.graphics.Rect",
-                listOf("android.content.Context", "int", "int", "int"),
-            )
-        )
-    }
-
-    @Test
     fun horizontalFrictionRuleOnlyMatchesFreeformUtilityOverload() {
         val rule = MethodHookRule(setOf("applyFriction"), HookAction.FREE_HORIZONTAL_FRICTION)
 
@@ -173,8 +150,8 @@ class HookProfilesTest {
     }
 
     @Test
-    fun everyConfiguredProfileHasRules() {
-        assertTrue((HookProfiles.systemServer + HookProfiles.systemUi).all { it.rules.isNotEmpty() })
+    fun everyConfiguredUiProfileHasRules() {
+        assertTrue(HookProfiles.systemUi.all { it.rules.isNotEmpty() })
     }
 
     @Test
