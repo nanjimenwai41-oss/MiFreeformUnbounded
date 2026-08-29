@@ -36,7 +36,8 @@ log.txt
 /MiuiSystemUI.*
 /系统界面_*.apk
 /lib*.so
-/analysis/miuisystemui/
+/.tmp_aod_dex/
+/analysis/
 *.apk
 *.odex
 *.vdex
