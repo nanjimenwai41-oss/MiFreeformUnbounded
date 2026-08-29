@@ -4,8 +4,8 @@
 
 A freeform-window boundary and lock-screen glass-clock module for HyperOS 3/4. It is built with Kotlin, Jetpack Compose, MIUIX, and Modern LibXposed API 102. It improves freeform-window movement and forces the lock-screen glass clock in scenes where the stock editor does not support it.
 
-> Current development version: **v2.2.6** (version code: **20260836**)
-> [Download the stable release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v2.0.0) · [Read the changelog](CHANGELOG.md)
+> Current stable version: **v3.0.0** (version code: **20260901**)
+> [Download v3.0.0 Release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0) · [Read the changelog](CHANGELOG.md)
 
 ## Features
 
@@ -20,6 +20,9 @@ A freeform-window boundary and lock-screen glass-clock module for HyperOS 3/4. I
 - A scoped lock-screen editor hook that forces the all-in-one clock's glass-clock effect in dynamic and Super wallpaper scenes while preserving stock behavior elsewhere.
 - Preserves the glass-clock effect during wallpaper switching and prevents dynamic-wallpaper filter cleanup from reverting it.
 - Settings remain reachable while the module is inactive; the edge-adjustment card becomes disabled and shows “模块未激活” when tapped.
+- Freeform boundary protection has a dedicated secondary settings page. Its master switch controls edge distance and fine adjustment; when disabled, all subordinate controls are dimmed and non-interactive.
+- Settings and secondary-page feature icons follow the MIUIX theme primary color and use wallpaper-derived Monet colors when Monet is enabled.
+- Enabling the forced glass clock shows a confirmation dialog describing the power and material limitations before saving the setting.
 
 ## Compatibility
 
@@ -35,7 +38,7 @@ HyperOS minor releases may rename classes or change method signatures. The modul
 
 ## Installation
 
-1. Download the APK from the [v2.0.0 stable release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v2.0.0).
+1. Download the APK from the [v3.0.0 stable release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0).
 2. Install it with a module manager that supports Modern LibXposed API 102.
 3. Enable the static scopes `com.android.systemui` and `com.miui.aod`.
 4. Reboot the device, or use the Home actions to restart System UI or the lock-screen editor as needed.
@@ -45,20 +48,20 @@ HyperOS minor releases may rename classes or change method signatures. The modul
 
 ### Edge distance
 
-The **Minimum visible distance** slider controls the minimum number of pixels kept visible when a freeform window reaches a display edge. The default is `196px`; the supported range is `8px`–`320px`. Fine adjustment reduces the effective step per drag for precise tuning.
+Open **Freeform boundary protection** from Settings to reach the secondary page. Its **Minimum visible distance** slider controls the minimum number of pixels kept visible when a freeform window reaches a display edge. The default is `196px`; the supported range is `8px`–`320px`. Fine adjustment reduces the effective step per drag for precise tuning. When the master switch is off, the edge-distance section is dimmed and cannot be used.
 
 When the module is inactive, the Settings page remains available, but the edge-adjustment card is disabled. It becomes available after activation or when a restart is pending.
 
 ### Feature switches
 
-- **Freeform boundary protection**: when disabled, SystemUI freeform hooks call the stock implementation without changes.
-- **Force lock-screen glass clock**: when disabled, the lock-screen editor keeps the stock glass-clock restrictions.
+- **Freeform boundary protection**: the secondary-page master switch; when disabled, SystemUI freeform hooks call the stock implementation without changes and the edge controls are disabled.
+- **Force lock-screen glass clock**: enabling it requires confirmation of the power and material limitations; it forces the lock-screen glass clock in unsupported scenes, while disabling it restores the stock lock-screen editor restrictions.
 - Switches and edge distance are stored in shared module/target preferences; restart the corresponding process after changing them. The Settings reset action restores `196px` and disables both features.
 
 ### Theme and navigation
 
 - Dark mode: follow system, light, or dark.
-- Monet: use wallpaper-derived dynamic colors, with optional seed color, palette style, and color specification.
+- Monet: use wallpaper-derived dynamic colors, with optional seed color, palette style, and color specification; feature icons follow the theme primary color.
 - Floating navigation bar: standard, blurred, and liquid-glass variants.
 - Predictive back: enabled on Android versions that support the callback.
 
@@ -111,7 +114,7 @@ Released under the [GNU Affero General Public License v3.0](LICENSE). Issues, co
 
 ## Releases and documentation
 
-- [v2.0.0 changelog](CHANGELOG.md)
+- [v3.0.0 changelog](CHANGELOG.md)
 - [GitHub Releases](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases)
 - [中文 README](README.md)
 

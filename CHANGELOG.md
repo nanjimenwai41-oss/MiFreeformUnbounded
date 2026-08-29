@@ -4,6 +4,16 @@
 
 ## 中文
 
+### v3.0.0 · 2026-09-01 · 正式版
+
+- 将自由窗口边界保护归类到独立的二级设置页面，新增顶部总开关；关闭时边缘距离和精细调节会灰显并且不可操作。
+- 保留边缘距离、最小可见距离输入和精细调节功能，统一二级页面的交互和说明。
+- 强制使用玻璃时钟开启前增加功耗与数字材质限制确认弹窗，避免误开启后无法使用其他时钟材质。
+- 补齐一级设置页的自由窗口边界保护图标，并统一一级、二级设置页图标与文字的对齐方式。
+- 设置页和二级设置页图标统一使用 MIUIX 主题主色，启用 Monet 时跟随壁纸动态取色。
+- 发布版本名 `3.0.0`，版本号 `20260901`。
+
+
 ### v2.2.6 · 2026-08-29 · 开发版
 
 - 将自由窗口边缘距离、精细调节移动到独立的二级设置页面。
@@ -100,6 +110,16 @@
 - 某些设备需要完整重启，而不是仅重启 SystemUI，才能重新加载静态作用域。
 
 ## English
+
+### v3.0.0 · 2026-09-01 · Stable
+
+- Grouped freeform boundary protection into a dedicated secondary settings page with a master switch; edge distance and fine adjustment are dimmed and non-interactive when it is off.
+- Kept the edge-distance slider, minimum-distance input, and fine adjustment while aligning the secondary-page interaction and descriptions.
+- Added a power-consumption and material-limit confirmation dialog before enabling the forced glass-clock feature, reducing accidental activation.
+- Restored the freeform boundary protection icon on the main Settings page and aligned the feature icons with their labels on both pages.
+- All Settings and secondary-page feature icons now use the MIUIX theme primary color and follow wallpaper-derived Monet colors.
+- Released version `3.0.0` with version code `20260901`.
+
 
 ### v2.2.6 · 2026-08-29 · Development
 
