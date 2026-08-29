@@ -30,3 +30,14 @@ analysis/miuisystemui/classes3_full.dump.txt
 .codex-tmp/
 CrushLog/
 log.txt
+
+# 设备抓取日志、系统镜像和反编译产物：不得提交到远程仓库
+/hyperos*.txt
+/MiuiSystemUI.*
+/系统界面_*.apk
+/lib*.so
+/analysis/miuisystemui/
+*.apk
+*.odex
+*.vdex
+*.so
