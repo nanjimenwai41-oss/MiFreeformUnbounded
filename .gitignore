@@ -47,6 +47,8 @@ log.txt
 **/log*.txt
 **/*-log*.txt
 **/logs/
+**/aod_glass*.txt
+**/*capture*.txt
 *.trace
 *.dump
 *.dump.txt
