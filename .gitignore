@@ -42,3 +42,14 @@ log.txt
 *.odex
 *.vdex
 *.so
+
+# 常见的本地设备日志、抓取报告和诊断转储
+**/log*.txt
+**/*-log*.txt
+**/logs/
+*.trace
+*.dump
+*.dump.txt
+*.dmp
+*.pcap
+*.har
