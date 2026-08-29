@@ -163,4 +163,74 @@ class HookProfilesTest {
             rule.action == HookAction.DISABLE_BOOLEAN && rule.names.any { it in pinEntryNames }
         })
     }
+
+    @Test
+    fun aodGlassRuleMatchesTheDecompiledCompanionSignature() {
+        val rule = HookProfiles.aod
+            .flatMap { it.rules }
+            .first { it.action == HookAction.ALLOW_GLASS_ON_ANY_WALLPAPER }
+
+        assertTrue(
+            rule.matches(
+                "glassEffectDisable",
+                "boolean",
+                listOf("int", "com.miui.keyguard.editor.data.bean.CommonConfig"),
+            )
+        )
+        assertFalse(rule.matches("glassEffectDisable", "boolean", listOf("int")))
+    }
+
+    @Test
+    fun aodGlassPreservationRulesMatchDecompiledSignatures() {
+        val rules = HookProfiles.aod.flatMap { it.rules }
+        assertTrue(rules.any {
+            it.action == HookAction.PRESERVE_GLASS_EFFECT && it.matches(
+                "computeSupportedClockEffect",
+                "int",
+                listOf("com.miui.keyguard.editor.data.bean.CommonConfig", "int"),
+            )
+        })
+        assertTrue(rules.any {
+            it.action == HookAction.ALLOW_GLASS_WALLPAPER_FILTER && it.matches(
+                "isWallpaperSupportGlassFilter",
+                "boolean",
+                listOf("[Ljava.lang.String;"),
+            )
+        })
+        assertTrue(rules.any {
+            it.action == HookAction.ALLOW_GLASS_WALLPAPER_FILTER && it.matches(
+                "isWallpaperSupportGlassFilter",
+                "boolean",
+                listOf("[Ljava/lang/String;"),
+            )
+        })
+        assertTrue(rules.any {
+            it.action == HookAction.ALLOW_GLASS_WALLPAPER_FILTER && it.matches(
+                "isWallpaperSupportGlassFilter",
+                "boolean",
+                listOf("java.lang.String"),
+            )
+        })
+        assertTrue(rules.any {
+            it.action == HookAction.SKIP_GLASS_FILTER_DISABLE && it.matches(
+                "disableGlassFilter",
+                "void",
+                emptyList(),
+            )
+        })
+        assertTrue(HookProfiles.systemUi.flatMap { it.rules }.any {
+            it.action == HookAction.PRESERVE_GLASS_SYSTEMUI && it.matches(
+                "setClockBean",
+                "void",
+                listOf("boolean", "boolean", "com.miui.clock.module.ClockBean"),
+            )
+        })
+        assertTrue(HookProfiles.systemUi.flatMap { it.rules }.any {
+            it.action == HookAction.PRESERVE_GLASS_SYSTEMUI && it.matches(
+                "getClockBeanFromSetting",
+                "com.miui.clock.module.ClockBean",
+                listOf("java.lang.String"),
+            )
+        })
+    }
 }

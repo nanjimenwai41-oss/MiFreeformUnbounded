@@ -2,9 +2,9 @@
 
 [中文](README.md) · [English](README_EN.md)
 
-A freeform-window boundary module for HyperOS 3 / Android 16. It is built with Kotlin, Jetpack Compose, MIUIX, and Modern LibXposed API 102. Strictly validated hook rules improve edge protection and horizontal freeform-window movement without forcing incompatible methods into the system.
+A freeform-window boundary and lock-screen glass-clock module for HyperOS 3/4. It is built with Kotlin, Jetpack Compose, MIUIX, and Modern LibXposed API 102. It improves freeform-window movement and forces the lock-screen glass clock in scenes where the stock editor does not support it.
 
-> Current stable release: **v2.0.0** (version code: **20260805**)  
+> Current development version: **v2.2.6** (version code: **20260836**)
 > [Download the stable release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v2.0.0) · [Read the changelog](CHANGELOG.md)
 
 ## Features
@@ -14,19 +14,21 @@ A freeform-window boundary module for HyperOS 3 / Android 16. It is built with K
 - Modern LibXposed API 102 with static scope support.
 - Class, method, parameter, and return-type validation before every hook; unmatched rules preserve stock behavior and produce diagnostic logs.
 - Hot-reload support and rate-limited diagnostics for different HyperOS builds.
-- A three-page Compose/MIUIX UI: Home, Settings, and About.
-- Edge-distance slider, fine adjustment, light/dark themes, system Monet, palette styles, and color specifications.
+- A three-page Compose/MIUIX UI: Home, Settings, and About, with separate System UI and lock-screen editor restart actions.
+- Freeform boundary and forced glass-clock switches, edge-distance slider, fine adjustment, reset-to-default action, light/dark themes, system Monet, palette styles, and color specifications.
 - Floating navigation bar, liquid-glass effects, navigation status badges, and predictive back support.
+- A scoped lock-screen editor hook that forces the all-in-one clock's glass-clock effect in dynamic and Super wallpaper scenes while preserving stock behavior elsewhere.
+- Preserves the glass-clock effect during wallpaper switching and prevents dynamic-wallpaper filter cleanup from reverting it.
 - Settings remain reachable while the module is inactive; the edge-adjustment card becomes disabled and shows “模块未激活” when tapped.
 
 ## Compatibility
 
 | Item | Requirement |
 | --- | --- |
-| System | HyperOS 3 / Android 16 (target environment) |
+| System | HyperOS 3/4 (HyperOS 4 target) |
 | Minimum Android | Android 12 (API 31) |
 | Hook framework | A manager supporting Modern LibXposed API 102 |
-| Static scope | `android`, `com.android.systemui` |
+| Static scope | `com.android.systemui`, `com.miui.aod` |
 | Build toolchain | JDK 21, Android SDK 37, Gradle Wrapper |
 
 HyperOS minor releases may rename classes or change method signatures. The module intentionally performs strict matching and skips incompatible rules instead of forcing an unsafe hook.
@@ -35,8 +37,8 @@ HyperOS minor releases may rename classes or change method signatures. The modul
 
 1. Download the APK from the [v2.0.0 stable release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v2.0.0).
 2. Install it with a module manager that supports Modern LibXposed API 102.
-3. Enable the static scopes `android` and `com.android.systemui`.
-4. Reboot the device, or restart SystemUI when prompted by the app.
+3. Enable the static scopes `com.android.systemui` and `com.miui.aod`.
+4. Reboot the device, or use the Home actions to restart System UI or the lock-screen editor as needed.
 5. Open the app and verify that the status card reports Working or Pending restart.
 
 ## Usage
@@ -46,6 +48,12 @@ HyperOS minor releases may rename classes or change method signatures. The modul
 The **Minimum visible distance** slider controls the minimum number of pixels kept visible when a freeform window reaches a display edge. The default is `196px`; the supported range is `8px`–`320px`. Fine adjustment reduces the effective step per drag for precise tuning.
 
 When the module is inactive, the Settings page remains available, but the edge-adjustment card is disabled. It becomes available after activation or when a restart is pending.
+
+### Feature switches
+
+- **Freeform boundary protection**: when disabled, SystemUI freeform hooks call the stock implementation without changes.
+- **Force lock-screen glass clock**: when disabled, the lock-screen editor keeps the stock glass-clock restrictions.
+- Switches and edge distance are stored in shared module/target preferences; restart the corresponding process after changing them. The Settings reset action restores `196px` and disables both features.
 
 ### Theme and navigation
 
@@ -85,7 +93,7 @@ app/src/main/java/com/freeform/unbounded/
 
 ## Troubleshooting
 
-- **The home page says inactive**: verify both static scopes and reboot the device or SystemUI.
+- **The home page says inactive**: verify both static scopes and reboot the device or the corresponding target process.
 - **The page says pending restart**: the module is installed, but the target process has not reloaded yet.
 - **Dragging is unchanged**: check whether the current HyperOS build still exposes a known method signature and inspect Xposed logs.
 - **The slider is disabled**: this is expected while the module is inactive; it is restored after activation or pending restart.

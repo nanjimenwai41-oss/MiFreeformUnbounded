@@ -16,12 +16,13 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.roundToInt
 
-/** Modern LibXposed API 102 entry point for HyperOS 3 freeform-window hooks. */
+/** Modern LibXposed API 102 entry point for the freeform and AOD hooks. */
 class FreeformHook : XposedModule() {
     private val installedHookIds = ConcurrentHashMap.newKeySet<String>()
     private val logCounts = ConcurrentHashMap<String, AtomicInteger>()
     private val horizontalDragSession = ThreadLocal<HorizontalDragSession?>()
     private val loadedConfig = AtomicReference<HookConfig?>()
+    private val dynamicGlassWallpaper = ThreadLocal.withInitial { false }
 
     override fun onModuleLoaded(param: ModuleLoadedParam) {
         log(
@@ -32,12 +33,16 @@ class FreeformHook : XposedModule() {
     }
 
     override fun onPackageReady(param: PackageReadyParam) {
-        if (param.packageName != PACKAGE_SYSTEM_UI || !param.isFirstPackage) return
-        // The boundary is intentionally a SystemUI-only hook. Cache the remote
-        // preference for this process so changing the setting never mutates an
-        // already-running window manager; restart SystemUI to load a new value.
-        loadedConfig.set(readConfig())
-        installProfiles(HookProfiles.systemUi, param.classLoader, PACKAGE_SYSTEM_UI)
+        when (param.packageName) {
+            PACKAGE_SYSTEM_UI -> {
+                // The boundary is intentionally a SystemUI-only hook. Cache the
+                // remote preference for this process so changing the setting never
+                // mutates an already-running window manager.
+                loadedConfig.set(readConfig())
+                installProfiles(HookProfiles.systemUi, param.classLoader, PACKAGE_SYSTEM_UI)
+            }
+            PACKAGE_AOD -> installProfiles(HookProfiles.aod, param.classLoader, PACKAGE_AOD)
+        }
     }
 
     override fun onHotReloading(param: HotReloadingParam): Boolean {
@@ -174,6 +179,20 @@ class FreeformHook : XposedModule() {
         chain: XposedInterface.Chain,
     ): Any? {
         val config = loadedConfig.get() ?: readConfig().also { loadedConfig.compareAndSet(null, it) }
+
+        val featureEnabled = when {
+            rule.action in FREEFORM_ACTIONS -> config.freeformBoundaryEnabled
+            rule.action in AOD_GLASS_ACTIONS -> config.aodGlassEnabled
+            else -> true
+        }
+        if (!featureEnabled) {
+            logLimited(
+                Log.INFO,
+                "disabled:${hookId}",
+                "Skipped ${rule.action} because its module feature is disabled",
+            )
+            return chain.proceed()
+        }
 
         return when (rule.action) {
             HookAction.DISABLE_BOOLEAN -> {
@@ -335,6 +354,126 @@ class FreeformHook : XposedModule() {
                     safe
                 }
             }
+
+            HookAction.ALLOW_GLASS_ON_ANY_WALLPAPER -> {
+                val effectId = chain.getArg(0) as? Int ?: return chain.proceed()
+                val commonConfig = chain.getArg(1)
+                val stockResult = chain.proceed()
+                val stockDisabled = stockResult as? Boolean
+                if (stockDisabled != null &&
+                    GlassBypassPolicy.shouldOverride(effectId, stockDisabled, commonConfig)
+                ) {
+                    logLimited(
+                        Log.INFO,
+                        hookId,
+                        "Enabled Glass font effect for non-static AOD wallpaper",
+                    )
+                    false
+                } else {
+                    stockResult
+                }
+            }
+
+            HookAction.PRESERVE_GLASS_EFFECT -> {
+                val commonConfig = chain.getArg(0)
+                val requestedEffect = chain.getArg(1) as? Int ?: return chain.proceed()
+                val stockResult = chain.proceed()
+                if (stockResult is Int &&
+                    GlassBypassPolicy.shouldPreserveGlassEffect(requestedEffect, commonConfig)
+                ) {
+                    logLimited(
+                        Log.INFO,
+                        hookId,
+                        "Preserved Glass clock effect $requestedEffect for dynamic AOD wallpaper (stock=$stockResult)",
+                    )
+                    requestedEffect
+                } else {
+                    stockResult
+                }
+            }
+
+            HookAction.ALLOW_GLASS_WALLPAPER_FILTER -> {
+                val stringTypes = when (val argument = chain.getArg(0)) {
+                    is String -> arrayOf(argument)
+                    is Array<*> -> argument.mapNotNull { it as? String }.toTypedArray()
+                    else -> null
+                }
+                val dynamicWallpaper = GlassBypassPolicy.shouldAllowGlassWallpaperFilter(stringTypes)
+                val stockResult = chain.proceed()
+                if (dynamicWallpaper) {
+                    dynamicGlassWallpaper.set(true)
+                }
+                if (stockResult is Boolean &&
+                    !stockResult && dynamicWallpaper
+                ) {
+                    logLimited(Log.INFO, hookId, "Enabled Glass wallpaper filter for dynamic AOD wallpaper")
+                    true
+                } else {
+                    stockResult
+                }
+            }
+
+            HookAction.SKIP_GLASS_FILTER_DISABLE -> {
+                if (dynamicGlassWallpaper.get() == true ||
+                    GlassBypassPolicy.shouldKeepGlassEnabled(chain.getThisObject())
+                ) {
+                    logLimited(Log.INFO, hookId, "Skipped AOD Glass filter disable for dynamic wallpaper")
+                    Unit
+                } else {
+                    chain.proceed()
+                }
+            }
+
+            HookAction.PRESERVE_GLASS_SYSTEMUI -> {
+                if (method.name == "getClockBeanFromSetting") {
+                    val result = chain.proceed()
+                    if (GlassBypassPolicy.shouldRestorePersistedSystemUiGlass(result)) {
+                        restoreSystemUiGlassBean(result, hookId, "from SystemUI settings")
+                    }
+                    result
+                } else {
+                    val clockBean = chain.getArg(2)
+                    if (GlassBypassPolicy.shouldRestoreSystemUiGlass(chain.getThisObject(), clockBean)) {
+                        restoreSystemUiGlassBean(clockBean, hookId, "in SystemUI for dynamic wallpaper")
+                    }
+                    chain.proceed()
+                }
+            }
+        }
+    }
+
+    private fun restoreSystemUiGlassBean(
+        clockBean: Any?,
+        hookId: String,
+        suffix: String,
+    ) {
+        val setClockEffect = clockBean?.javaClass?.methods?.firstOrNull {
+            it.name == "setClockEffect" &&
+                it.parameterTypes.contentEquals(arrayOf(Int::class.javaPrimitiveType))
+        }
+        if (setClockEffect == null) {
+            logLimited(
+                Log.WARN,
+                hookId,
+                "ClockBean.setClockEffect(int) is unavailable in SystemUI",
+            )
+        } else {
+            runCatching {
+                setClockEffect.invoke(clockBean, 5)
+            }.onSuccess {
+                logLimited(
+                    Log.INFO,
+                    hookId,
+                    "Restored Glass clock effect $suffix",
+                )
+            }.onFailure { error ->
+                logLimited(
+                    Log.WARN,
+                    hookId,
+                    "Failed to restore Glass clock effect $suffix",
+                    error,
+                )
+            }
         }
     }
 
@@ -346,6 +485,14 @@ class FreeformHook : XposedModule() {
                 ModuleConfigKeys.SECURITY_MARGIN,
                 ModuleConfigKeys.DEFAULT_MARGIN,
             )),
+            freeformBoundaryEnabled = prefs.getBoolean(
+                ModuleConfigKeys.FREEFORM_BOUNDARY_ENABLED,
+                false,
+            ),
+            aodGlassEnabled = prefs.getBoolean(
+                ModuleConfigKeys.AOD_GLASS_ENABLED,
+                false,
+            ),
         )
     }
 
@@ -558,6 +705,8 @@ class FreeformHook : XposedModule() {
 
     private data class HookConfig(
         val securityMarginPx: Int = ModuleConfigKeys.DEFAULT_MARGIN,
+        val freeformBoundaryEnabled: Boolean = false,
+        val aodGlassEnabled: Boolean = false,
     )
 
     private data class HorizontalDragSession(
@@ -577,9 +726,25 @@ class FreeformHook : XposedModule() {
     companion object {
         private const val TAG = "FreeformUnbounded"
         private const val PACKAGE_SYSTEM_UI = "com.android.systemui"
+        private const val PACKAGE_AOD = "com.miui.aod"
         private const val MAX_LOGS_PER_KEY = 3
         private const val MAX_DIAGNOSTIC_METHODS = 30
         private const val ACTION_MODE_UP = 1
+        private val FREEFORM_ACTIONS = setOf(
+            HookAction.DISABLE_BOOLEAN,
+            HookAction.FREE_HORIZONTAL_FRICTION,
+            HookAction.PRESERVE_HORIZONTAL_DRAG_SESSION,
+            HookAction.PRESERVE_HORIZONTAL_STABLE_OFFSET,
+            HookAction.PRESERVE_HORIZONTAL_ANIM_TARGET_PARAM,
+            HookAction.PRESERVE_HORIZONTAL_MOVE_FINAL_BOUNDS,
+        )
+        private val AOD_GLASS_ACTIONS = setOf(
+            HookAction.ALLOW_GLASS_ON_ANY_WALLPAPER,
+            HookAction.PRESERVE_GLASS_EFFECT,
+            HookAction.ALLOW_GLASS_WALLPAPER_FILTER,
+            HookAction.SKIP_GLASS_FILTER_DISABLE,
+            HookAction.PRESERVE_GLASS_SYSTEMUI,
+        )
         private val SCALE_X_METHODS = setOf("getScaleX", "scaleX")
         private val SCALE_Y_METHODS = setOf("getScaleY", "scaleY")
         private val SCALE_METHODS = setOf("getTaskScale", "getScale", "taskScale", "scale")

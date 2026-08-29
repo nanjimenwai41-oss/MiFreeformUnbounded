@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import com.freeform.unbounded.ui.AboutScreen
 import com.freeform.unbounded.ui.BlurredBar
 import com.freeform.unbounded.ui.ConfigScreen
+import com.freeform.unbounded.ui.FreeformBoundaryScreen
 import com.freeform.unbounded.ui.HomeScreen
 import com.freeform.unbounded.ui.ThemeScreen
 import com.freeform.unbounded.ui.component.FloatingBottomBar
@@ -125,6 +126,7 @@ class MainActivity : ComponentActivity() {
 private sealed interface AppRoute : NavKey {
     data object Main : AppRoute
     data object Theme : AppRoute
+    data object FreeformBoundary : AppRoute
 }
 
 @Composable
@@ -136,6 +138,7 @@ private fun FreeformApp(
         mutableStateListOf<AppRoute>(AppRoute.Main).apply {
             when (secondaryPage) {
                 SECONDARY_THEME -> add(AppRoute.Theme)
+                SECONDARY_FREEFORM_BOUNDARY -> add(AppRoute.FreeformBoundary)
             }
         }
     }
@@ -187,11 +190,19 @@ private fun FreeformApp(
                         glassSupported = glassSupported,
                         backdrop = backdrop,
                         onOpenTheme = { secondaryPage = SECONDARY_THEME },
+                        onOpenFreeformBoundary = { secondaryPage = SECONDARY_FREEFORM_BOUNDARY },
                     )
                 }
                 entry<AppRoute.Theme> {
                     ThemeScreen(
                         settings = settings,
+                        onBack = { popSecondary() },
+                    )
+                }
+                entry<AppRoute.FreeformBoundary> {
+                    FreeformBoundaryScreen(
+                        enableBlur = settings.enableBlur,
+                        moduleReady = status.active || status.pendingRestart,
                         onBack = { popSecondary() },
                     )
                 }
@@ -224,6 +235,7 @@ private fun MainRoot(
     glassSupported: Boolean,
     backdrop: LayerBackdrop,
     onOpenTheme: () -> Unit,
+    onOpenFreeformBoundary: () -> Unit,
 ) {
     LaunchedEffect(mainPagerState.pagerState.currentPage) {
         mainPagerState.syncPage()
@@ -256,13 +268,20 @@ private fun MainRoot(
                     ),
             ) { page ->
                 when (tabs.getOrElse(page) { MainTab.HOME }) {
-                    MainTab.HOME -> HomeScreen(enableBlur = settings.enableBlur)
+                    MainTab.HOME -> HomeScreen(
+                        enableBlur = settings.enableBlur,
+                        floatingBottomBar = floating,
+                    )
                     MainTab.CONFIG -> ConfigScreen(
                         onOpenTheme = onOpenTheme,
                         enableBlur = settings.enableBlur,
-                        moduleReady = moduleReady,
+                        floatingBottomBar = floating,
+                        onOpenFreeformBoundary = onOpenFreeformBoundary,
                     )
-                    MainTab.ABOUT -> AboutScreen(enableBlur = settings.enableBlur)
+                    MainTab.ABOUT -> AboutScreen(
+                        enableBlur = settings.enableBlur,
+                        floatingBottomBar = floating,
+                    )
                 }
             }
         }
@@ -349,3 +368,4 @@ private enum class MainTab(val label: String, val icon: androidx.compose.ui.grap
 
 private const val SECONDARY_MAIN = 0
 private const val SECONDARY_THEME = 1
+private const val SECONDARY_FREEFORM_BOUNDARY = 2

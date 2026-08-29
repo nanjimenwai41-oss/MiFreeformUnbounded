@@ -4,6 +4,55 @@
 
 ## 中文
 
+### v2.2.6 · 2026-08-29 · 开发版
+
+- 将自由窗口边缘距离、精细调节移动到独立的二级设置页面。
+- 新增自由窗口边界保护总开关；关闭时下方设置灰显且不可操作。
+- 开启强制玻璃时钟前增加功耗与数字材质限制确认弹窗。
+
+
+### v2.2.5 · 2026-08-29 · 开发版
+
+- 统一 UI 用词：使用“系统界面”“息屏与锁屏编辑”“强制使用玻璃时钟”和“锁屏玻璃时钟”。
+- 两项功能默认关闭，边缘距离默认值仍为 `196px`。
+- 首页、设置页和关于页统一增加悬浮底栏避让间距。
+- 简化关于页说明，直接列出两个目标应用及各自功能，并补充 HyperOS 3/4 与 HyperOS 4 的兼容范围。
+
+
+### v2.2.4 · 2026-08-29 · 开发版
+
+- 设置页新增自由窗口边界保护与 AOD Glass 字体放行开关，均默认开启并通过 remote preferences 同步到目标进程。
+- 首页新增分别重启 `com.android.systemui` 和 `com.miui.aod` 的按钮，AOD 编辑器同时覆盖 `keyguardeditor` 子进程。
+- 增强配置页的边缘距离说明、恢复默认配置入口和动态状态摘要。
+- 完善关于页的模块作用域、Hook 策略、开关生效方式与 ROOT 权限说明。
+
+
+### v2.2.3 · 2026-08-29 · 开发版
+
+- 补齐 SystemUI 的 `getClockBeanFromSetting(String)` 读取路径；当设置重新读出带 Glass 特征但 `clockEffect=1` 的时钟时，在应用前恢复为 `clockEffect=5`。
+- 保留 `setClockBean` 接收路径兜底，避免动态壁纸应用后因设置刷新再次回退到混色效果。
+
+### v2.2.2 · 2026-08-29 · 开发版
+
+- 兼容当前设备的 `isWallpaperSupportGlassFilter(String)` 签名，动态 `video` 参数现在会正确进入 Glass 放行路径。
+
+### v2.2.1 · 2026-08-29 · 开发版
+
+- 补齐 `com.android.systemui` 的 `MiuiClockController.setClockBean` 接收路径，在动态/深度壁纸下恢复被降级的 Glass effect。
+- 仅匹配 all-in-one Glass 特征字段和 `isWallpaperSupportDepth=true`，静态壁纸及其他时钟样式保持原行为。
+
+### v2.2.0 · 2026-08-29 · 开发版
+
+- 根据设备运行日志补齐 AOD 动态壁纸路径：保留 Glass effect ID、放开玻璃滤镜支持判断，并跳过动态壁纸上的滤镜清理。
+- 移除首包限制，确保 `com.miui.aod:keyguardeditor` 进程能够安装 hook。
+
+### v2.1.0 · 2026-08-29 · 开发版
+
+- 新增 `com.miui.aod` Modern LibXposed API 102 Hook。
+- 解除 all-in-one 息屏时钟在动态壁纸和超级壁纸下的 Glass 字体效果限制。
+- 只改写已被系统判定为禁用的 Glass 效果；静态壁纸、其它模板和其它效果保持原行为。
+- 目标环境更新为 HyperOS 4，版本号 `20260829`。
+
 ### v2.0.0 · 2026-08-05 · 正式版
 
 这是 MiFreeformUnbounded 的完整 2.0 正式版本，重点完成了 HyperOS 3 自由窗口边界策略、Modern LibXposed API 102 接入，以及基于 Compose/MIUIX 的管理界面重构。
@@ -51,6 +100,55 @@
 - 某些设备需要完整重启，而不是仅重启 SystemUI，才能重新加载静态作用域。
 
 ## English
+
+### v2.2.6 · 2026-08-29 · Development
+
+- Moved freeform edge distance and fine adjustment into a dedicated secondary settings page.
+- Added a master switch that disables and dims all subordinate controls when off.
+- Added a power-consumption and material-limit confirmation dialog before enabling the forced glass-clock feature.
+
+
+### v2.2.5 · 2026-08-29 · Development
+
+- Standardized the UI terminology for the System UI, lock-screen editor, and lock-screen glass clock features.
+- Both module features now default to disabled; the edge-distance default remains `196px`.
+- Unified floating navigation-bar avoidance spacing on Home, Settings, and About.
+- Simplified About to name the two hooked applications and their user-facing functions, with the HyperOS compatibility split.
+
+
+### v2.2.4 · 2026-08-29 · Development
+
+- Added Settings switches for freeform boundary protection and AOD Glass passthrough. Both remain enabled by default and sync through remote preferences.
+- Added separate Home actions to restart `com.android.systemui` and `com.miui.aod`; the AOD action also handles the `keyguardeditor` child process.
+- Improved configuration descriptions, reset-to-default action, and live status summaries.
+- Expanded About with module scopes, runtime hook behavior, switch activation rules, and root permission details.
+
+
+### v2.2.3 · 2026-08-29 · Development
+
+- Hook the SystemUI `getClockBeanFromSetting(String)` reload path and restore `clockEffect=5` before a Glass-marked bean is applied after settings refresh.
+- Keep the `setClockBean` receive-path fallback so dynamic-wallpaper applications do not fall back to the mixed-color effect on reload.
+
+### v2.2.2 · 2026-08-29 · Development
+
+- Support the device's `isWallpaperSupportGlassFilter(String)` signature so the dynamic `video` argument reaches the Glass allow path correctly.
+
+### v2.2.1 · 2026-08-29 · Development
+
+- Added the `com.android.systemui` `MiuiClockController.setClockBean` receive-path hook to restore a downgraded Glass effect for dynamic/depth wallpapers.
+- The override is limited to all-in-one Glass marker fields with `isWallpaperSupportDepth=true`; static wallpapers and other clock styles remain unchanged.
+
+### v2.2.0 · 2026-08-29 · Development
+
+- Completed the AOD dynamic-wallpaper path using runtime evidence: preserve the Glass effect ID, allow the Glass filter support check, and skip filter cleanup for dynamic wallpapers.
+- Removed the first-package gate so the `com.miui.aod:keyguardeditor` process can install its hooks.
+
+### v2.1.0 · 2026-08-29 · Development
+
+- Added a Modern LibXposed API 102 hook for `com.miui.aod`.
+- Enabled the all-in-one AOD clock's Glass font effect for dynamic and Super wallpapers.
+- Only stock-disabled Glass decisions are overridden; static wallpapers, other templates, and other effects are untouched.
+- Updated the target environment to HyperOS 4 and version code to `20260829`.
 
 ### v2.0.0 · 2026-08-05 · Stable
 

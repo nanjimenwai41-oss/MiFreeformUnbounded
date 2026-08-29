@@ -10,6 +10,11 @@ internal enum class HookAction {
     PRESERVE_HORIZONTAL_STABLE_OFFSET,
     PRESERVE_HORIZONTAL_ANIM_TARGET_PARAM,
     PRESERVE_HORIZONTAL_MOVE_FINAL_BOUNDS,
+    ALLOW_GLASS_ON_ANY_WALLPAPER,
+    PRESERVE_GLASS_EFFECT,
+    ALLOW_GLASS_WALLPAPER_FILTER,
+    SKIP_GLASS_FILTER_DISABLE,
+    PRESERVE_GLASS_SYSTEMUI,
 }
 
 internal data class MethodHookRule(
@@ -60,6 +65,29 @@ internal data class MethodHookRule(
                 parameterTypes[5] == "float" &&
                 parameterTypes[6] == "android.graphics.PointF" &&
                 parameterTypes[7] == "float"
+            HookAction.ALLOW_GLASS_ON_ANY_WALLPAPER -> returnType == "boolean" &&
+                parameterTypes == listOf(
+                    "int",
+                    "com.miui.keyguard.editor.data.bean.CommonConfig",
+                )
+            HookAction.PRESERVE_GLASS_EFFECT -> returnType == "int" &&
+                parameterTypes == listOf(
+                    "com.miui.keyguard.editor.data.bean.CommonConfig",
+                    "int",
+                )
+            HookAction.ALLOW_GLASS_WALLPAPER_FILTER -> returnType == "boolean" &&
+                parameterTypes.size == 1
+            HookAction.SKIP_GLASS_FILTER_DISABLE -> returnType == "void" &&
+                parameterTypes.size <= 1
+            HookAction.PRESERVE_GLASS_SYSTEMUI -> returnType == "void" &&
+                parameterTypes == listOf(
+                    "boolean",
+                    "boolean",
+                    "com.miui.clock.module.ClockBean",
+                ) ||
+                (name == "getClockBeanFromSetting" &&
+                    returnType == "com.miui.clock.module.ClockBean" &&
+                    (parameterTypes.isEmpty() || parameterTypes == listOf("java.lang.String")))
         }
     }
 }
@@ -99,6 +127,31 @@ internal object HookProfiles {
         action = HookAction.PRESERVE_HORIZONTAL_MOVE_FINAL_BOUNDS,
     )
 
+    private val allowGlassOnAnyWallpaper = MethodHookRule(
+        names = setOf("glassEffectDisable"),
+        action = HookAction.ALLOW_GLASS_ON_ANY_WALLPAPER,
+    )
+
+    private val preserveGlassEffect = MethodHookRule(
+        names = setOf("computeSupportedClockEffect"),
+        action = HookAction.PRESERVE_GLASS_EFFECT,
+    )
+
+    private val allowGlassWallpaperFilter = MethodHookRule(
+        names = setOf("isWallpaperSupportGlassFilter"),
+        action = HookAction.ALLOW_GLASS_WALLPAPER_FILTER,
+    )
+
+    private val skipGlassFilterDisable = MethodHookRule(
+        names = setOf("disableGlassFilter"),
+        action = HookAction.SKIP_GLASS_FILTER_DISABLE,
+    )
+
+    private val preserveGlassSystemUi = MethodHookRule(
+        names = setOf("setClockBean", "getClockBeanFromSetting"),
+        action = HookAction.PRESERVE_GLASS_SYSTEMUI,
+    )
+
     val systemServer = emptyList<ClassHookProfile>()
 
     val systemUi = listOf(
@@ -117,6 +170,21 @@ internal object HookProfiles {
         ClassHookProfile(
             "com.android.wm.shell.multitasking.miuifreeform.MiuiFreeformModeMoveHandler",
             listOf(preserveHorizontalMoveFinalBounds),
+        ),
+        ClassHookProfile(
+            "com.miui.clock.MiuiClockController",
+            listOf(preserveGlassSystemUi),
+        ),
+    )
+
+    val aod = listOf(
+        ClassHookProfile(
+            "com.miui.keyguard.editor.viewmodel.EditFragmentViewModel\$Companion",
+            listOf(allowGlassOnAnyWallpaper, preserveGlassEffect),
+        ),
+        ClassHookProfile(
+            "com.miui.keyguard.editor.edit.base.EffectsTemplateView",
+            listOf(allowGlassWallpaperFilter, skipGlassFilterDisable),
         ),
     )
 }

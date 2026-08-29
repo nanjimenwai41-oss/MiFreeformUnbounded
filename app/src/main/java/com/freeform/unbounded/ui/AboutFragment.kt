@@ -12,9 +12,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -60,11 +63,20 @@ private const val KERNELSU_URL = "https://github.com/tiann/KernelSU"
 private const val HYPERLIGHT_URL = "https://github.com/KiminonawaResa/HyperLight"
 
 @Composable
-internal fun AboutScreen(enableBlur: Boolean) {
+internal fun AboutScreen(
+    enableBlur: Boolean,
+    floatingBottomBar: Boolean,
+) {
     val uri = LocalUriHandler.current
     val state = rememberLazyListState()
     val blurBackdrop = rememberBlurBackdrop(enableBlur)
     val barColor = if (blurBackdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface
+    val navigationBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val contentBottomPadding = if (floatingBottomBar) {
+        104.dp + navigationBottomInset
+    } else {
+        32.dp + navigationBottomInset
+    }
     Scaffold(
         topBar = {
             BlurredBar(blurBackdrop) {
@@ -81,12 +93,36 @@ internal fun AboutScreen(enableBlur: Boolean) {
             LazyColumn(
             state = state,
             modifier = Modifier.fillMaxSize().scrollEndHaptic().overScrollVertical(),
-            contentPadding = PaddingValues(16.dp, padding.calculateTopPadding() + 16.dp, 16.dp, 28.dp),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                top = padding.calculateTopPadding() + 16.dp,
+                end = 16.dp,
+                bottom = contentBottomPadding,
+            ),
             horizontalAlignment = Alignment.CenterHorizontally,
             overscrollEffect = null,
         ) {
             item {
                 AboutHero()
+            }
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    insideMargin = PaddingValues(18.dp),
+                ) {
+                    Text(
+                        "模块说明",
+                        style = MiuixTheme.textStyles.title4,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "本模块 Hook 了系统界面和息屏与锁屏编辑两个应用：在系统界面中提供自由小窗边界保护，适用于 HyperOS 3/4；在息屏与锁屏编辑中，当场景不支持玻璃时钟（例如动态壁纸和超级壁纸）时强制使用锁屏玻璃时钟，该功能仅适用于 HyperOS 4。修改设置后，请重启系统界面和息屏与锁屏编辑，重启操作需要 ROOT 权限。",
+                        style = MiuixTheme.textStyles.body1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
             }
             item {
                 Card(Modifier.fillMaxWidth()) {
@@ -162,7 +198,7 @@ private fun AboutHero() {
             )
             Text("Freeform Unbounded", color = Color.White, fontSize = 31.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
             Text("${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", color = Color.White.copy(alpha = 0.78f), fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
-            Text("HyperOS 3 自由小窗边界模块", color = Color.White.copy(alpha = 0.78f), fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 5.dp))
+            Text("适用于 HyperOS 的自由小窗与锁屏玻璃时钟模块", color = Color.White.copy(alpha = 0.78f), fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 5.dp))
         }
     }
     Spacer(Modifier.height(16.dp))

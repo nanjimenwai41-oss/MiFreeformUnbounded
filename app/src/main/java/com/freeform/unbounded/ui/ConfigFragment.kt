@@ -13,10 +13,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -52,6 +57,7 @@ import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.Text
@@ -61,30 +67,29 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun ConfigScreen(
+    onOpenFreeformBoundary: () -> Unit,
     onOpenTheme: () -> Unit,
     enableBlur: Boolean,
-    moduleReady: Boolean,
+    floatingBottomBar: Boolean,
 ) {
     val config by ConfigRepository.config.collectAsState()
-    val settings by AppSettingsRepository.settings.collectAsState()
     val context = LocalContext.current
-    var showMarginDialog by remember { mutableStateOf(false) }
-    var sliderValue by remember(config.securityMarginPx) {
-        mutableFloatStateOf(config.securityMarginPx.toFloat())
-    }
-    var rawSliderValue by remember { mutableFloatStateOf(sliderValue) }
-    var fineAdjustmentGestureStarted by remember { mutableStateOf(false) }
+    var showGlassWarning by remember { mutableStateOf(false) }
     val blurBackdrop = rememberBlurBackdrop(enableBlur)
     val barColor = if (blurBackdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface
-    val inactiveToast = {
-        Toast.makeText(context, "模块未激活", Toast.LENGTH_SHORT).show()
+    val navigationBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val contentBottomPadding = if (floatingBottomBar) {
+        // The floating bar is 64.dp high, sits 12.dp above the navigation inset,
+        // and is drawn over the pager rather than inside Scaffold.
+        104.dp + navigationBottomInset
+    } else {
+        32.dp + navigationBottomInset
     }
-    val adjustmentCardColor = if (isInDarkTheme()) Color(0xFF424242) else Color(0xFFE0E0E0)
-    val adjustmentContentColor = if (isInDarkTheme()) Color(0xFFBDBDBD) else Color(0xFF616161)
     Scaffold(
         topBar = {
             BlurredBar(blurBackdrop) {
@@ -105,100 +110,43 @@ internal fun ConfigScreen(
                 start = 16.dp,
                 top = padding.calculateTopPadding() + 8.dp,
                 end = 16.dp,
-                bottom = 24.dp,
+                bottom = contentBottomPadding,
             ),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            item { SectionLabel("功能介绍") }
+            item { SectionLabel("模块功能") }
             item {
-                Card(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(18.dp)) {
-                    Text("窗口控制", style = MiuixTheme.textStyles.title4, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "模块对所有应用始终启用安全边界。拖动小窗时会根据当前屏幕和窗口尺寸，限制窗口内侧边缘与屏幕边框的最小距离；横竖屏、分辨率和窗口大小变化都会实时重新计算。",
-                        style = MiuixTheme.textStyles.body1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
-                }
-            }
-            item { SectionLabel("边缘距离") }
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .alpha(if (moduleReady) 1f else 0.62f),
-                    colors = if (moduleReady) {
-                        CardDefaults.defaultColors()
-                    } else {
-                        CardDefaults.defaultColors(
-                            color = adjustmentCardColor,
-                            contentColor = adjustmentContentColor,
-                        )
-                    },
-                    onClick = { if (!moduleReady) inactiveToast() },
-                    showIndication = moduleReady,
-                ) {
+                Card(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
-                        title = "最小可见距离",
-                        summary = "当前：${sliderValue.roundToInt()}px · 默认：196px · 范围：${ModuleConfigKeys.MIN_MARGIN}-${ModuleConfigKeys.MAX_MARGIN}px",
-                        holdDownState = showMarginDialog,
-                        onClick = { if (moduleReady) showMarginDialog = true else inactiveToast() },
-                        bottomAction = {
-                            Slider(
-                                value = sliderValue,
-                                enabled = moduleReady,
-                                onValueChange = { rawValue ->
-                                    if (!moduleReady) {
-                                        inactiveToast()
-                                        return@Slider
-                                    }
-                                    if (!settings.fineAdjustmentEnabled) {
-                                        sliderValue = rawValue
-                                        rawSliderValue = rawValue
-                                        fineAdjustmentGestureStarted = false
-                                    } else {
-                                        // MIUIX derives values from cumulative physical drag distance.
-                                        // Scale each raw delta so the thumb stays visible but moves more slowly.
-                                        if (fineAdjustmentGestureStarted) {
-                                            sliderValue = applyFineAdjustment(
-                                                currentValue = sliderValue,
-                                                rawValue = rawValue,
-                                                previousRawValue = rawSliderValue,
-                                            )
-                                        } else {
-                                            fineAdjustmentGestureStarted = true
-                                        }
-                                        rawSliderValue = rawValue
-                                    }
-                                },
-                                onValueChangeFinished = {
-                                    if (!moduleReady) return@Slider
-                                    fineAdjustmentGestureStarted = false
-                                    rawSliderValue = sliderValue
-                                    ConfigRepository.setSecurityMargin(sliderValue.roundToInt())
-                                },
-                                valueRange = ModuleConfigKeys.MIN_MARGIN.toFloat()..ModuleConfigKeys.MAX_MARGIN.toFloat(),
-                            )
-                        },
-                    )
-                    OverlayDropdownPreference(
-                        title = "精细调节",
-                        summary = FINE_ADJUSTMENT_OPTIONS[if (settings.fineAdjustmentEnabled) 0 else 1],
+                        title = "自由窗口边界保护",
+                        summary = "总开关、最小可见距离和精细调节",
                         startAction = {
                             Icon(
                                 Icons.Rounded.Tune,
                                 contentDescription = null,
                                 modifier = Modifier.padding(end = 6.dp),
-                                tint = MiuixTheme.colorScheme.onBackground,
+                                tint = MiuixTheme.colorScheme.primary,
                             )
                         },
-                        items = FINE_ADJUSTMENT_OPTIONS,
-                        selectedIndex = if (settings.fineAdjustmentEnabled) 0 else 1,
-                        onSelectedIndexChange = { index ->
-                            if (moduleReady) {
-                                AppSettingsRepository.setFineAdjustmentEnabled(index == 0)
+                        onClick = onOpenFreeformBoundary,
+                    )
+                    SwitchPreference(
+                        title = "强制使用玻璃时钟",
+                        summary = "在不支持玻璃时钟的场景下（例如动态壁纸和超级壁纸）强制使用锁屏玻璃时钟；修改后请重启系统界面和息屏与锁屏编辑，重启后生效",
+                        startAction = {
+                            Icon(
+                                Icons.Rounded.Wallpaper,
+                                contentDescription = null,
+                                modifier = Modifier.padding(end = 6.dp),
+                                tint = MiuixTheme.colorScheme.primary,
+                            )
+                        },
+                        checked = config.aodGlassEnabled,
+                        onCheckedChange = { enabled ->
+                            if (enabled) {
+                                showGlassWarning = true
                             } else {
-                                inactiveToast()
+                                ConfigRepository.setAodGlassEnabled(false)
                             }
                         },
                     )
@@ -214,7 +162,229 @@ internal fun ConfigScreen(
                     )
                 }
             }
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    ArrowPreference(
+                        title = "恢复默认配置",
+                        summary = "边缘距离 196px · 两项模块功能均关闭",
+                        onClick = {
+                            ConfigRepository.reset()
+                            Toast.makeText(context, "已恢复默认配置", Toast.LENGTH_SHORT).show()
+                        },
+                    )
+                }
+            }
         }
+        }
+        GlassClockWarningDialog(
+            show = showGlassWarning,
+            onDismissRequest = { showGlassWarning = false },
+            onConfirm = {
+                ConfigRepository.setAodGlassEnabled(true)
+                showGlassWarning = false
+            },
+        )
+    }
+}
+
+@Composable
+internal fun FreeformBoundaryScreen(
+    enableBlur: Boolean,
+    moduleReady: Boolean,
+    onBack: () -> Unit,
+) {
+    val config by ConfigRepository.config.collectAsState()
+    val settings by AppSettingsRepository.settings.collectAsState()
+    val context = LocalContext.current
+    var showMarginDialog by remember { mutableStateOf(false) }
+    var sliderValue by remember(config.securityMarginPx) {
+        mutableFloatStateOf(config.securityMarginPx.toFloat())
+    }
+    var rawSliderValue by remember { mutableFloatStateOf(sliderValue) }
+    var fineAdjustmentGestureStarted by remember { mutableStateOf(false) }
+    val controlsEnabled = moduleReady && config.freeformBoundaryEnabled
+    val blurBackdrop = rememberBlurBackdrop(enableBlur)
+    val barColor = if (blurBackdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface
+    val adjustmentCardColor = if (isInDarkTheme()) Color(0xFF424242) else Color(0xFFE0E0E0)
+    val adjustmentContentColor = if (isInDarkTheme()) Color(0xFFBDBDBD) else Color(0xFF616161)
+    val inactiveToast = {
+        Toast.makeText(
+            context,
+            "模块未激活",
+            Toast.LENGTH_SHORT,
+        ).show()
+    }
+    Scaffold(
+        topBar = {
+            BlurredBar(blurBackdrop) {
+                TopAppBar(
+                    color = barColor,
+                    title = "自由窗口边界保护",
+                    largeTitle = "自由窗口边界保护",
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
+                        }
+                    },
+                )
+            }
+        },
+    ) { padding ->
+        Box(
+            modifier = if (blurBackdrop != null) Modifier.layerBackdrop(blurBackdrop) else Modifier,
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    top = padding.calculateTopPadding() + 8.dp,
+                    end = 16.dp,
+                    bottom = 28.dp,
+                ),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                item {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        SwitchPreference(
+                            title = "自由窗口边界保护",
+                            summary = "总开关；关闭后下方的边缘距离和精细调节不可用",
+                            startAction = {
+                                Icon(
+                                    Icons.Rounded.Tune,
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(end = 6.dp),
+                                    tint = MiuixTheme.colorScheme.primary,
+                                )
+                            },
+                            checked = config.freeformBoundaryEnabled,
+                            onCheckedChange = { enabled ->
+                                ConfigRepository.setFreeformBoundaryEnabled(enabled)
+                                if (!enabled) showMarginDialog = false
+                            },
+                        )
+                    }
+                }
+                item {
+                    Text(
+                        "开启总开关后，下面的边缘距离设置才会生效；修改后请重启系统界面。",
+                        style = MiuixTheme.textStyles.footnote1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+                    )
+                }
+                item { SectionLabel("边缘距离", enabled = controlsEnabled) }
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .alpha(if (controlsEnabled) 1f else 0.62f),
+                        colors = if (controlsEnabled) {
+                            CardDefaults.defaultColors()
+                        } else {
+                            CardDefaults.defaultColors(
+                                color = adjustmentCardColor,
+                                contentColor = adjustmentContentColor,
+                            )
+                        },
+                        insideMargin = PaddingValues(18.dp),
+                    ) {
+                        Text("窗口控制", style = MiuixTheme.textStyles.title4, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "调整自由窗口拖到屏幕边缘时保留的最小可见距离。数值写入系统界面与模块服务共享配置，重启系统界面后应用。",
+                            style = MiuixTheme.textStyles.body1,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .alpha(if (controlsEnabled) 1f else 0.62f),
+                        colors = if (controlsEnabled) {
+                            CardDefaults.defaultColors()
+                        } else {
+                            CardDefaults.defaultColors(
+                                color = adjustmentCardColor,
+                                contentColor = adjustmentContentColor,
+                            )
+                        },
+                        onClick = { if (!controlsEnabled && !moduleReady) inactiveToast() },
+                        showIndication = controlsEnabled,
+                    ) {
+                        ArrowPreference(
+                            title = "最小可见距离",
+                            summary = "当前：${sliderValue.roundToInt()}px · 默认：196px · 范围：${ModuleConfigKeys.MIN_MARGIN}-${ModuleConfigKeys.MAX_MARGIN}px",
+                            holdDownState = showMarginDialog,
+                            onClick = {
+                                if (controlsEnabled) {
+                                    showMarginDialog = true
+                                } else if (!moduleReady) {
+                                    inactiveToast()
+                                }
+                            },
+                            bottomAction = {
+                                Slider(
+                                    value = sliderValue,
+                                    enabled = controlsEnabled,
+                                    onValueChange = { rawValue ->
+                                        if (!controlsEnabled) {
+                                            if (!moduleReady) inactiveToast()
+                                            return@Slider
+                                        }
+                                        if (!settings.fineAdjustmentEnabled) {
+                                            sliderValue = rawValue
+                                            rawSliderValue = rawValue
+                                            fineAdjustmentGestureStarted = false
+                                        } else {
+                                            if (fineAdjustmentGestureStarted) {
+                                                sliderValue = applyFineAdjustment(
+                                                    currentValue = sliderValue,
+                                                    rawValue = rawValue,
+                                                    previousRawValue = rawSliderValue,
+                                                )
+                                            } else {
+                                                fineAdjustmentGestureStarted = true
+                                            }
+                                            rawSliderValue = rawValue
+                                        }
+                                    },
+                                    onValueChangeFinished = {
+                                        if (!controlsEnabled) return@Slider
+                                        fineAdjustmentGestureStarted = false
+                                        rawSliderValue = sliderValue
+                                        ConfigRepository.setSecurityMargin(sliderValue.roundToInt())
+                                    },
+                                    valueRange = ModuleConfigKeys.MIN_MARGIN.toFloat()..ModuleConfigKeys.MAX_MARGIN.toFloat(),
+                                )
+                            },
+                        )
+                        OverlayDropdownPreference(
+                            title = "精细调节",
+                            summary = FINE_ADJUSTMENT_OPTIONS[if (settings.fineAdjustmentEnabled) 0 else 1],
+                            startAction = {
+                                Icon(
+                                    Icons.Rounded.Tune,
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(end = 6.dp),
+                                    tint = MiuixTheme.colorScheme.primary,
+                                )
+                            },
+                            items = FINE_ADJUSTMENT_OPTIONS,
+                            selectedIndex = if (settings.fineAdjustmentEnabled) 0 else 1,
+                            enabled = controlsEnabled,
+                            onSelectedIndexChange = { index ->
+                                if (controlsEnabled) {
+                                    AppSettingsRepository.setFineAdjustmentEnabled(index == 0)
+                                } else if (!moduleReady) {
+                                    inactiveToast()
+                                }
+                            },
+                        )
+                    }
+                }
+            }
         }
         SecurityMarginDialog(
             show = showMarginDialog,
@@ -349,12 +519,81 @@ private fun SecurityMarginDialog(
 }
 
 @Composable
-private fun SectionLabel(text: String) {
+private fun GlassClockWarningDialog(
+    show: Boolean,
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    if (!show) return
+
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+        ),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .safeDrawingPadding()
+                .imePadding()
+                .padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 640.dp),
+                cornerRadius = 36.dp,
+                insideMargin = PaddingValues(24.dp),
+            ) {
+                Text(
+                    text = "强制使用玻璃时钟",
+                    style = MiuixTheme.textStyles.title3,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    text = "开启该功能之后功耗将升高，请考虑是否开启。由于技术限制，目前会使得在息屏与锁屏编辑当中的数字材质强制为玻璃，其他选项无效，若需重新启用其他选项需要关闭模块开关，是否确认？",
+                    style = MiuixTheme.textStyles.body1,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp, bottom = 20.dp),
+                )
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    TextButton(
+                        text = "取消",
+                        onClick = onDismissRequest,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(20.dp))
+                    TextButton(
+                        text = "确认开启",
+                        onClick = onConfirm,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionLabel(
+    text: String,
+    enabled: Boolean = true,
+) {
     Text(
         text,
         style = MiuixTheme.textStyles.subtitle,
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 2.dp),
+        modifier = Modifier
+            .alpha(if (enabled) 1f else 0.62f)
+            .padding(start = 12.dp, top = 8.dp, bottom = 2.dp),
     )
 }
 

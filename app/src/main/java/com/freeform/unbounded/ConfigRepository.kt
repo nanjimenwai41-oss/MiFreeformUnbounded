@@ -37,6 +37,18 @@ internal object ConfigRepository {
         )
     }
 
+    fun setFreeformBoundaryEnabled(enabled: Boolean) = update {
+        it.copy(freeformBoundaryEnabled = enabled)
+    }
+
+    fun setAodGlassEnabled(enabled: Boolean) = update {
+        it.copy(aodGlassEnabled = enabled)
+    }
+
+    fun reset() {
+        update { AppConfig() }
+    }
+
     private fun update(transform: (AppConfig) -> AppConfig) {
         val updated = transform(_config.value)
         persist(updated)

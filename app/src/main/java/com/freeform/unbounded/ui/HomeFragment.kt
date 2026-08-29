@@ -8,9 +8,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -36,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freeform.unbounded.BuildConfig
+import com.freeform.unbounded.ConfigRepository
 import com.freeform.unbounded.ModuleStatus
 import com.freeform.unbounded.ModuleStatusRepository
 import com.freeform.unbounded.SystemUiRestarter
@@ -60,12 +64,22 @@ import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import kotlinx.coroutines.launch
 
 @Composable
-internal fun HomeScreen(enableBlur: Boolean) {
+internal fun HomeScreen(
+    enableBlur: Boolean,
+    floatingBottomBar: Boolean,
+) {
     val status by ModuleStatusRepository.status.collectAsState()
+    val config by ConfigRepository.config.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val blurBackdrop = rememberBlurBackdrop(enableBlur)
     val barColor = if (blurBackdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface
+    val navigationBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val contentBottomPadding = if (floatingBottomBar) {
+        104.dp + navigationBottomInset
+    } else {
+        32.dp + navigationBottomInset
+    }
     Scaffold(
         topBar = {
             BlurredBar(blurBackdrop) {
@@ -82,15 +96,23 @@ internal fun HomeScreen(enableBlur: Boolean) {
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp, padding.calculateTopPadding() + 8.dp, 16.dp, 24.dp),
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    top = padding.calculateTopPadding() + 8.dp,
+                    end = 16.dp,
+                    bottom = contentBottomPadding,
+                ),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 item { KernelStyleStatusCard(status) }
                 item {
                     RuntimeCard(
-                        status = status,
+                        config = config,
                         onRestartSystemUi = {
-                            scope.launch { SystemUiRestarter.restart(context) }
+                            scope.launch { SystemUiRestarter.restartSystemUi(context) }
+                        },
+                        onRestartAod = {
+                            scope.launch { SystemUiRestarter.restartAod(context) }
                         },
                     )
                 }
@@ -243,7 +265,7 @@ private fun KernelStylePendingFace(status: ModuleStatus, accent: Color) {
             Text("待重启", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(2.dp))
             Text(
-                text = "模块已安装，点击下方重启系统界面",
+                text = "模块已安装，请按需重启系统界面或息屏与锁屏编辑",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 2,
@@ -309,13 +331,14 @@ private fun KernelStyleInactiveFace(status: ModuleStatus, accent: Color) {
 
 @Composable
 private fun RuntimeCard(
-    status: ModuleStatus,
+    config: com.freeform.unbounded.AppConfig,
     onRestartSystemUi: () -> Unit,
+    onRestartAod: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         BasicComponent(
             title = "重启系统界面",
-            summary = "重启后应用新的边缘距离\n需要 ROOT 权限",
+            summary = "刷新自由小窗功能\n需要 ROOT 权限",
             endActions = {
                 TextButton(
                     text = "重启",
@@ -324,7 +347,33 @@ private fun RuntimeCard(
                 )
             },
         )
-        BasicComponent(title = "边缘保护", summary = "全部应用 · 始终开启")
+        BasicComponent(
+            title = "重启息屏与锁屏编辑",
+            summary = "刷新锁屏玻璃时钟功能\n需要 ROOT 权限",
+            endActions = {
+                TextButton(
+                    text = "重启",
+                    onClick = onRestartAod,
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
+            },
+        )
+        BasicComponent(
+            title = "自由窗口边界保护",
+            summary = if (config.freeformBoundaryEnabled) {
+                "已开启 · 重启系统界面后生效"
+            } else {
+                "已关闭 · 保留系统原行为"
+            },
+        )
+        BasicComponent(
+            title = "强制使用玻璃时钟",
+            summary = if (config.aodGlassEnabled) {
+                "已开启 · 不支持玻璃时钟的场景也会强制使用锁屏玻璃时钟"
+            } else {
+                "已关闭 · 保留系统原有的玻璃时钟限制"
+            },
+        )
     }
 }
 
