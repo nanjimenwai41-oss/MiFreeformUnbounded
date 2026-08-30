@@ -25,6 +25,7 @@ internal data class AppSettings(
     val floatingBottomBarBlur: Boolean = true,
     val navigationBadge: Boolean = true,
     val predictiveBack: Boolean = false,
+    val maxPredictiveBackProgress: Float = DEFAULT_MAX_PREDICTIVE_BACK_PROGRESS,
     val fineAdjustmentEnabled: Boolean = true,
 ) {
     companion object {
@@ -56,6 +57,14 @@ internal object AppSettingsRepository {
     fun setFloatingBottomBarBlur(value: Boolean) = update { it.copy(floatingBottomBarBlur = value) }
     fun setNavigationBadge(value: Boolean) = update { it.copy(navigationBadge = value) }
     fun setPredictiveBack(value: Boolean) = update { it.copy(predictiveBack = value) }
+    fun setMaxPredictiveBackProgress(value: Float) = update {
+        it.copy(
+            maxPredictiveBackProgress = value.coerceIn(
+                MIN_MAX_PREDICTIVE_BACK_PROGRESS,
+                MAX_MAX_PREDICTIVE_BACK_PROGRESS,
+            ),
+        )
+    }
     fun setFineAdjustmentEnabled(value: Boolean) = update { it.copy(fineAdjustmentEnabled = value) }
 
     private fun update(transform: (AppSettings) -> AppSettings) {
@@ -72,6 +81,7 @@ internal object AppSettingsRepository {
             putBoolean("floating_bottom_bar_blur", value.floatingBottomBarBlur)
             putBoolean("navigation_badge", value.navigationBadge)
             putBoolean("enable_predictive_back", value.predictiveBack)
+            putFloat("max_predictive_back_progress", value.maxPredictiveBackProgress)
             putBoolean("fine_adjustment_enabled", value.fineAdjustmentEnabled)
             remove("fine_adjustment_color")
             remove("predictive_back")
@@ -99,6 +109,10 @@ internal object AppSettingsRepository {
                 "enable_predictive_back",
                 prefs.getBoolean("predictive_back", false),
             ),
+            maxPredictiveBackProgress = prefs.getFloat(
+                "max_predictive_back_progress",
+                DEFAULT_MAX_PREDICTIVE_BACK_PROGRESS,
+            ).coerceIn(MIN_MAX_PREDICTIVE_BACK_PROGRESS, MAX_MAX_PREDICTIVE_BACK_PROGRESS),
             fineAdjustmentEnabled = prefs.getBoolean("fine_adjustment_enabled", true),
         )
     }

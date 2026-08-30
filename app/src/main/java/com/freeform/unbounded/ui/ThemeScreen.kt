@@ -50,6 +50,9 @@ import com.freeform.unbounded.AppSettings
 import com.freeform.unbounded.AppSettingsRepository
 import com.freeform.unbounded.DarkMode
 import com.freeform.unbounded.FreeformApplication
+import com.freeform.unbounded.DEFAULT_MAX_PREDICTIVE_BACK_PROGRESS
+import com.freeform.unbounded.MAX_MAX_PREDICTIVE_BACK_PROGRESS
+import com.freeform.unbounded.MIN_MAX_PREDICTIVE_BACK_PROGRESS
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -64,6 +67,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeColorSpec
 import top.yukonga.miuix.kmp.theme.ThemePaletteStyle
+import kotlin.math.roundToInt
 
 @Composable
 internal fun ThemeScreen(
@@ -218,6 +222,31 @@ internal fun ThemeScreen(
                                 activity?.recreate()
                             },
                         )
+                        AnimatedVisibility(visible = settings.predictiveBack) {
+                            OverlayDropdownPreference(
+                                title = "最大预测返回进度",
+                                summary = "页面预览最多移动 ${(settings.maxPredictiveBackProgress * 100).roundToInt()}%",
+                                startAction = {
+                                    Icon(
+                                        Icons.AutoMirrored.Rounded.MenuOpen,
+                                        null,
+                                        Modifier.padding(end = 6.dp),
+                                        tint = MiuixTheme.colorScheme.onBackground,
+                                    )
+                                },
+                                items = PREDICTIVE_BACK_MAX_PROGRESS_VALUES.map {
+                                    "${(it * 100).roundToInt()}%"
+                                },
+                                selectedIndex = PREDICTIVE_BACK_MAX_PROGRESS_VALUES
+                                    .indexOf(settings.maxPredictiveBackProgress)
+                                    .coerceAtLeast(0),
+                                onSelectedIndexChange = { index ->
+                                    AppSettingsRepository.setMaxPredictiveBackProgress(
+                                        PREDICTIVE_BACK_MAX_PROGRESS_VALUES[index],
+                                    )
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -269,3 +298,13 @@ private fun ThemeColorSpec.displayName(): String = when (this) {
     ThemeColorSpec.Spec2021 -> "Material 2021"
     ThemeColorSpec.Spec2025 -> "Material 2025"
 }
+
+private val PREDICTIVE_BACK_MAX_PROGRESS_VALUES = listOf(
+    MIN_MAX_PREDICTIVE_BACK_PROGRESS,
+    0.25f,
+    0.30f,
+    DEFAULT_MAX_PREDICTIVE_BACK_PROGRESS,
+    0.40f,
+    0.45f,
+    MAX_MAX_PREDICTIVE_BACK_PROGRESS,
+)

@@ -189,9 +189,9 @@ private fun KernelStyleStatusCard(
     }
     val inactivePalette = if (monetEnabled) {
         StatusPalette(
-            container = MiuixTheme.colorScheme.secondaryContainer,
-            accent = MiuixTheme.colorScheme.secondary,
-            content = MiuixTheme.colorScheme.onSecondaryContainer,
+            container = MiuixTheme.colorScheme.errorContainer,
+            accent = MiuixTheme.colorScheme.error,
+            content = MiuixTheme.colorScheme.onErrorContainer,
         )
     } else {
         StatusPalette(

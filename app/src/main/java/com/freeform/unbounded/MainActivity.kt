@@ -50,6 +50,7 @@ import com.freeform.unbounded.ui.component.rememberMainPagerState
 import com.freeform.unbounded.ui.theme.FreeformUnboundedTheme
 import com.freeform.unbounded.ui.rememberBlurBackdrop
 import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import androidx.navigation3.runtime.NavKey
@@ -215,11 +216,23 @@ private fun FreeformApp(
 private fun MainScreenBackHandler(
     isBackEnabled: Boolean,
     mainPagerState: MainPagerState,
+    maxPredictiveBackProgress: Float,
 ) {
     val navigationEventState = rememberNavigationEventState(NavigationEventInfo.None)
+    val transitionState = navigationEventState.transitionState
+    LaunchedEffect(transitionState, maxPredictiveBackProgress) {
+        val inProgress = transitionState as? NavigationEventTransitionState.InProgress
+        if (inProgress?.direction == NavigationEventTransitionState.TRANSITIONING_BACK) {
+            mainPagerState.setPredictiveBackProgress(
+                progress = inProgress.latestEvent.progress,
+                maxProgress = maxPredictiveBackProgress,
+            )
+        }
+    }
     NavigationBackHandler(
         isBackEnabled = isBackEnabled,
         state = navigationEventState,
+        onBackCancelled = mainPagerState::cancelPredictiveBack,
         onBackCompleted = { mainPagerState.animateToPage(0) },
     )
 }
@@ -246,6 +259,7 @@ private fun MainRoot(
     MainScreenBackHandler(
         isBackEnabled = selectedPage != 0,
         mainPagerState = mainPagerState,
+        maxPredictiveBackProgress = settings.maxPredictiveBackProgress,
     )
 
     Box(Modifier.fillMaxSize()) {
@@ -271,6 +285,7 @@ private fun MainRoot(
                     MainTab.HOME -> HomeScreen(
                         enableBlur = settings.enableBlur,
                         floatingBottomBar = floating,
+                        monetEnabled = settings.monetEnabled,
                     )
                     MainTab.CONFIG -> ConfigScreen(
                         onOpenTheme = onOpenTheme,
