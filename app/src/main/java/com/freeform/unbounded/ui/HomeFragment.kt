@@ -1,5 +1,6 @@
 package com.freeform.unbounded.ui
 
+import android.os.Build
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
@@ -67,6 +68,7 @@ import kotlinx.coroutines.launch
 internal fun HomeScreen(
     enableBlur: Boolean,
     floatingBottomBar: Boolean,
+    monetEnabled: Boolean,
 ) {
     val status by ModuleStatusRepository.status.collectAsState()
     val config by ConfigRepository.config.collectAsState()
@@ -104,7 +106,12 @@ internal fun HomeScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                item { KernelStyleStatusCard(status) }
+                item {
+                    KernelStyleStatusCard(
+                        status = status,
+                        monetEnabled = monetEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
+                    )
+                }
                 item {
                     RuntimeCard(
                         config = config,
@@ -122,7 +129,10 @@ internal fun HomeScreen(
 }
 
 @Composable
-private fun KernelStyleStatusCard(status: ModuleStatus) {
+private fun KernelStyleStatusCard(
+    status: ModuleStatus,
+    monetEnabled: Boolean,
+) {
     val targetFace = when {
         status.checking -> StatusFace.CHECKING
         status.active -> StatusFace.ACTIVE
@@ -147,25 +157,49 @@ private fun KernelStyleStatusCard(status: ModuleStatus) {
     val inactive = !active && !pending
     val statusTextColor = if (isInDarkTheme()) Color.White else Color.Black
 
-    // Status cards intentionally use fixed semantic colors. Monet is not applied
-    // to any of the three faces, matching the requested KernelSU-style card look.
-    val workingPalette = StatusPalette(
-        container = if (isInDarkTheme()) HyperGreenContainerDark else HyperGreenContainerLight,
-        accent = ActiveAccent,
-        content = statusTextColor,
-    )
-
-    // Warning glyphs keep their original yellow/red accents while text stays neutral.
-    val pendingPalette = StatusPalette(
-        container = if (isInDarkTheme()) PendingContainerDark else PendingContainerLight,
-        accent = PendingAccent,
-        content = statusTextColor,
-    )
-    val inactivePalette = StatusPalette(
-        container = if (isInDarkTheme()) HyperRedContainerDark else HyperRedContainerLight,
-        accent = HyperRed,
-        content = statusTextColor,
-    )
+    // Monet follows Material's semantic container roles. This keeps the card coherent with the
+    // rest of the wallpaper-derived palette instead of forcing green/yellow/red accents into it.
+    val workingPalette = if (monetEnabled) {
+        StatusPalette(
+            // KernelSU's Miuix home card uses the dynamic secondary container for its healthy
+            // state; keep the same role so the card follows Monet without hard-coded green.
+            container = MiuixTheme.colorScheme.secondaryContainer,
+            accent = MiuixTheme.colorScheme.primary,
+            content = MiuixTheme.colorScheme.onPrimaryContainer,
+        )
+    } else {
+        StatusPalette(
+            container = if (isInDarkTheme()) HyperGreenContainerDark else HyperGreenContainerLight,
+            accent = ActiveAccent,
+            content = statusTextColor,
+        )
+    }
+    val pendingPalette = if (monetEnabled) {
+        StatusPalette(
+            container = MiuixTheme.colorScheme.tertiaryContainer,
+            accent = MiuixTheme.colorScheme.onTertiaryContainer,
+            content = MiuixTheme.colorScheme.onTertiaryContainer,
+        )
+    } else {
+        StatusPalette(
+            container = if (isInDarkTheme()) PendingContainerDark else PendingContainerLight,
+            accent = PendingAccent,
+            content = statusTextColor,
+        )
+    }
+    val inactivePalette = if (monetEnabled) {
+        StatusPalette(
+            container = MiuixTheme.colorScheme.secondaryContainer,
+            accent = MiuixTheme.colorScheme.secondary,
+            content = MiuixTheme.colorScheme.onSecondaryContainer,
+        )
+    } else {
+        StatusPalette(
+            container = if (isInDarkTheme()) HyperRedContainerDark else HyperRedContainerLight,
+            accent = HyperRed,
+            content = statusTextColor,
+        )
+    }
     val palette = when {
         active -> workingPalette
         pending -> pendingPalette

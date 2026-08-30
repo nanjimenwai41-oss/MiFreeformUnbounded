@@ -1,6 +1,13 @@
 package com.freeform.unbounded.ui
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -23,9 +30,13 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextRange
@@ -63,6 +75,7 @@ import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.basic.TextFieldDefaults
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -476,11 +489,19 @@ private fun SecurityMarginDialog(
                 TextField(
                     value = text,
                     maxLines = 1,
+                    colors = TextFieldDefaults.textFieldColors(
+                        // Keep this numeric editor neutral even when Monet generates a colored
+                        // secondary container for the rest of the settings surface.
+                        backgroundColor = Color.White,
+                        labelColor = Color(0xFF424242),
+                        borderColor = Color(0xFF757575),
+                    ),
+                    textStyle = MiuixTheme.textStyles.main.copy(color = Color.Black),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     trailingIcon = {
                         Text(
                             text = "px",
-                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            color = Color(0xFF616161),
                             modifier = Modifier.padding(horizontal = 16.dp),
                         )
                     },
@@ -524,7 +545,11 @@ private fun GlassClockWarningDialog(
     onDismissRequest: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    if (!show) return
+    val dialogState = remember { MutableTransitionState(false) }
+    LaunchedEffect(show) {
+        dialogState.targetState = show
+    }
+    if (!dialogState.currentState && !dialogState.targetState) return
 
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -541,41 +566,67 @@ private fun GlassClockWarningDialog(
                 .padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
             contentAlignment = Alignment.BottomCenter,
         ) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 640.dp),
-                cornerRadius = 36.dp,
-                insideMargin = PaddingValues(24.dp),
+            AnimatedVisibility(
+                visibleState = dialogState,
+                enter = slideInVertically(
+                    initialOffsetY = { it },
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessMediumLow,
+                    ),
+                ) + scaleIn(
+                    initialScale = 0.96f,
+                    transformOrigin = TransformOrigin(0.5f, 1f),
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessMediumLow,
+                    ),
+                ) + fadeIn(animationSpec = tween(100)),
+                exit = slideOutVertically(
+                    targetOffsetY = { it / 2 },
+                    animationSpec = tween(180),
+                ) + scaleOut(
+                    targetScale = 0.98f,
+                    transformOrigin = TransformOrigin(0.5f, 1f),
+                    animationSpec = tween(180),
+                ) + fadeOut(animationSpec = tween(120)),
             ) {
-                Text(
-                    text = "强制使用玻璃时钟",
-                    style = MiuixTheme.textStyles.title3,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text(
-                    text = "开启该功能之后功耗将升高，请考虑是否开启。由于技术限制，目前会使得在息屏与锁屏编辑当中的数字材质强制为玻璃，其他选项无效，若需重新启用其他选项需要关闭模块开关，是否确认？",
-                    style = MiuixTheme.textStyles.body1,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 12.dp, bottom = 20.dp),
-                )
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    TextButton(
-                        text = "取消",
-                        onClick = onDismissRequest,
-                        modifier = Modifier.weight(1f),
+                        .widthIn(max = 640.dp),
+                    cornerRadius = 36.dp,
+                    insideMargin = PaddingValues(24.dp),
+                ) {
+                    Text(
+                        text = "强制使用玻璃时钟",
+                        style = MiuixTheme.textStyles.title3,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
                     )
-                    Spacer(Modifier.width(20.dp))
-                    TextButton(
-                        text = "确认开启",
-                        onClick = onConfirm,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                    Text(
+                        text = "开启该功能之后功耗将升高，请考虑是否开启。由于技术限制，目前会使得在息屏与锁屏编辑当中的数字材质强制为玻璃，其他选项无效，若需重新启用其他选项需要关闭模块开关，是否确认？",
+                        style = MiuixTheme.textStyles.body1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp, bottom = 20.dp),
                     )
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        TextButton(
+                            text = "取消",
+                            onClick = onDismissRequest,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(20.dp))
+                        TextButton(
+                            text = "确认开启",
+                            onClick = onConfirm,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                        )
+                    }
                 }
             }
         }
