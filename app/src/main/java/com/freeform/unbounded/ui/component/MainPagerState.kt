@@ -77,7 +77,9 @@ internal class MainPagerState(
         navJob = null
         isNavigating = false
         predictiveBackJob?.cancel()
-        val page = pagerState.currentPage.coerceAtLeast(1)
+        // Keep the gesture anchored to the page that was selected when it began. At the 50%
+        // limit PagerState may otherwise promote the neighboring page to currentPage mid-gesture.
+        val page = selectedPage.coerceAtLeast(1)
         val offset = -predictiveBackOffsetFraction(progress, maxProgress)
         predictiveBackJob = coroutineScope.launch {
             val myJob = coroutineContext.job
