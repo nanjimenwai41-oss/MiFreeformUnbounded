@@ -36,7 +36,7 @@ git push origin v3.1.0
 
 ## 签名注意事项
 
-签名私钥绝不提交到仓库。当前 Gradle 配置在本地存在 `.signing/mifreeform-debug.jks` 时，使用新建的独立 Debug 测试签名；CI 可通过 `DEBUG_KEYSTORE_BASE64` Secret 使用同一把钥匙，没有该 Secret 时会回退到 Runner 默认 Debug 签名。Release 使用 `.signing/mifreeform-release-legacy.jks`，CI 必须通过 `LEGACY_RELEASE_KEYSTORE_BASE64` Secret 注入它，以保证正式版本升级链不变。不要把 keystore、密码或设备日志写进仓库、Issue 或 CI 输出。
+签名私钥绝不提交到仓库。当前 Gradle 配置在本地存在 `.signing/mifreeform-debug.jks` 时，使用新建的独立 Debug 测试签名；CI 必须通过 `DEBUG_KEYSTORE_BASE64` Secret 使用同一把钥匙。Release 使用 `.signing/mifreeform-release-legacy.jks`，CI 必须通过 `LEGACY_RELEASE_KEYSTORE_BASE64` Secret 注入它，以保证正式版本升级链不变。不要把 keystore、密码或设备日志写进仓库、Issue 或 CI 输出。
 
 本地 Debug 密钥只用于测试，别把它用于 Release。若更换 Debug 密钥，已安装的 Debug 包可能需要先卸载；同一测试渠道应长期保持同一把密钥。当前遗留 Release 密钥实际沿用 v3.0.0 使用的本机 Debug keystore；它应单独离线备份，未来迁移到新的正式密钥时必须单独发布迁移说明。
 
