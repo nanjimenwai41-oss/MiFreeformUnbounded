@@ -80,7 +80,7 @@ $env:JAVA_HOME = "D:\Program Files\Android\Android Studio\jbr"
 app/build/outputs/apk/release/app-release.apk
 ```
 
-当前仓库的 Release 构建仍使用本地 Debug 签名，仅适合设备侧测试；公开发布前请配置长期有效的 Release keystore，并确认签名密钥、版本号和 `module.prop` 一致。
+当前仓库的 Release 构建沿用 v3.0.0 的遗留签名，以保持升级兼容；GitHub Actions 通过 `LEGACY_RELEASE_KEYSTORE_BASE64` Secret 注入该密钥。它仍是历史 Debug keystore，不是理想的公开发布密钥；未来迁移到新的长期 Release keystore 时必须单独规划升级迁移。请确认签名密钥、版本号和 `module.prop` 一致。
 
 ## 个人开发流程
 

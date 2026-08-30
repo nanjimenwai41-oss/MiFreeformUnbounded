@@ -36,7 +36,18 @@ Pushing a `vX.Y.Z` tag makes GitHub Actions build the Release APK from that exac
 
 ## Signing
 
-Never commit a signing private key. The current Gradle configuration still uses the local Debug signing setup, which is suitable for device testing; before using automated publishing for public distribution, configure a long-lived personal Release keystore through GitHub Actions Secrets so upgrades retain the same signing identity. Never place the keystore, passwords, or device logs in the repository, issues, or CI output.
+Never commit a signing private key. When `.signing/mifreeform-debug.jks` exists locally, Gradle uses the new dedicated Debug/test certificate; CI can use the same key through the `DEBUG_KEYSTORE_BASE64` Secret, and falls back to the runner Debug key when that Secret is absent. Release uses `.signing/mifreeform-release-legacy.jks`; CI requires the `LEGACY_RELEASE_KEYSTORE_BASE64` Secret so the stable upgrade identity remains unchanged. Never use the Debug key for Release, and never place keystores, passwords, or device logs in the repository, issues, or CI output.
+
+The local Debug key is test-only. Replacing it may require uninstalling an already installed Debug package; keep one key stable for one test channel. The legacy Release key currently reuses the machine Debug keystore used by v3.0.0; keep it backed up offline. A future migration to a new production key requires a separate migration note and release plan.
+
+To configure the GitHub Actions Secrets for the first time, encode the files in PowerShell and paste each result into the repository's Settings -> Secrets and variables -> Actions:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes('.signing\mifreeform-debug.jks')) | Set-Clipboard
+[Convert]::ToBase64String([IO.File]::ReadAllBytes('.signing\mifreeform-release-legacy.jks')) | Set-Clipboard
+```
+
+Save them as `DEBUG_KEYSTORE_BASE64` and `LEGACY_RELEASE_KEYSTORE_BASE64` respectively. These commands only copy the encoded key to the clipboard and do not write it to Git.
 
 ## Common commands
 

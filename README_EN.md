@@ -80,7 +80,7 @@ Output:
 app/build/outputs/apk/release/app-release.apk
 ```
 
-The repository currently uses the local Debug signing setup for Release builds, which is suitable for device testing only. Before public distribution, configure a long-lived Release keystore and verify that the signing configuration, `versionName`, `versionCode`, and `module.prop` are consistent.
+The repository's Release build preserves the legacy signing identity used by v3.0.0 for upgrade compatibility; GitHub Actions injects it through the `LEGACY_RELEASE_KEYSTORE_BASE64` Secret. It is still a historical Debug keystore rather than an ideal public-release key, so migrating to a new long-lived Release keystore requires a separate upgrade plan. Verify that the signing configuration, `versionName`, `versionCode`, and `module.prop` are consistent.
 
 ## Personal development flow
 

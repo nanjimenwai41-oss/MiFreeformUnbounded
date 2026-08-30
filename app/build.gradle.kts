@@ -21,12 +21,44 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Keep the local Debug/test certificate separate from the legacy certificate
+    // currently used by Release. The keystore is intentionally ignored by Git.
+    val localDebugKeystore = rootProject.file(".signing/mifreeform-debug.jks")
+    val legacyReleaseKeystore = rootProject.file(".signing/mifreeform-release-legacy.jks")
+    if (localDebugKeystore.isFile) {
+        signingConfigs.create("localDebug") {
+            storeFile = localDebugKeystore
+            storePassword = "android"
+            keyAlias = "mifreeform-debug"
+            keyPassword = "android"
+        }
+    }
+    if (legacyReleaseKeystore.isFile) {
+        signingConfigs.create("legacyRelease") {
+            storeFile = legacyReleaseKeystore
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            if (localDebugKeystore.isFile) {
+                signingConfig = signingConfigs.getByName("localDebug")
+            }
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles("proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug")
+            // Preserve the existing release certificate; fall back for machines that
+            // have not configured the ignored legacy keystore yet.
+            signingConfig = if (legacyReleaseKeystore.isFile) {
+                signingConfigs.getByName("legacyRelease")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
     compileOptions {
