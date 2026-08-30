@@ -14,6 +14,10 @@
 .externalNativeBuild
 .cxx
 local.properties
+keystore.properties
+*.jks
+*.keystore
+*.p12
 
 # Android / IDE 临时文件
 .gradle/
