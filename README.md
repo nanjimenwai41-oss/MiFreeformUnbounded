@@ -80,7 +80,11 @@ $env:JAVA_HOME = "D:\Program Files\Android\Android Studio\jbr"
 app/build/outputs/apk/release/app-release.apk
 ```
 
-本仓库的 Release 构建使用项目中配置的发布签名配置。正式发布前请确认签名密钥、版本号和 `module.prop` 一致。
+当前仓库的 Release 构建仍使用本地 Debug 签名，仅适合设备侧测试；公开发布前请配置长期有效的 Release keystore，并确认签名密钥、版本号和 `module.prop` 一致。
+
+## 个人开发流程
+
+日常改动、CI Debug 工件和正式版本是三个不同概念：推送开发分支会自动运行测试、Lint 并生成 Debug APK；只有在 `main` 验证完成后创建并推送 `vX.Y.Z` 标签，才会触发 Release APK 构建和 GitHub Release。具体步骤见 [个人开发与发布流程](DEVELOPMENT.md)。
 
 ## 项目结构
 

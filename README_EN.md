@@ -80,7 +80,11 @@ Output:
 app/build/outputs/apk/release/app-release.apk
 ```
 
-Before publishing, verify that the signing configuration, `versionName`, `versionCode`, and `module.prop` are consistent.
+The repository currently uses the local Debug signing setup for Release builds, which is suitable for device testing only. Before public distribution, configure a long-lived Release keystore and verify that the signing configuration, `versionName`, `versionCode`, and `module.prop` are consistent.
+
+## Personal development flow
+
+Daily changes, CI Debug artifacts, and stable versions are separate things: pushing a development branch runs tests, lint, and a Debug APK build; only a verified `main` branch followed by a `vX.Y.Z` tag triggers the Release APK build and GitHub Release. See [Personal Development and Release Flow](DEVELOPMENT_EN.md) for the exact steps.
 
 ## Project layout
 
