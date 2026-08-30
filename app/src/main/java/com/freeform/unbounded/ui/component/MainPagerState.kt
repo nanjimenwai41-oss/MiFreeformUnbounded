@@ -13,7 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import com.freeform.unbounded.clampPredictiveBackProgress
+import com.freeform.unbounded.predictiveBackOffsetFraction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.job
@@ -78,7 +78,7 @@ internal class MainPagerState(
         isNavigating = false
         predictiveBackJob?.cancel()
         val page = pagerState.currentPage.coerceAtLeast(1)
-        val offset = -clampPredictiveBackProgress(progress, maxProgress)
+        val offset = -predictiveBackOffsetFraction(progress, maxProgress)
         predictiveBackJob = coroutineScope.launch {
             val myJob = coroutineContext.job
             try {

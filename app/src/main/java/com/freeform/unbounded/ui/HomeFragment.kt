@@ -157,14 +157,13 @@ private fun KernelStyleStatusCard(
     val inactive = !active && !pending
     val statusTextColor = if (isInDarkTheme()) Color.White else Color.Black
 
-    // Monet follows Material's semantic container roles. This keeps the card coherent with the
-    // rest of the wallpaper-derived palette instead of forcing green/yellow/red accents into it.
+    // Monet status cards stay in the primary (accent) family. Mapping the three states to
+    // secondary/tertiary/error containers makes a blue theme turn cyan or green, while the
+    // status shape and text already communicate the state independently.
     val workingPalette = if (monetEnabled) {
         StatusPalette(
-            // KernelSU's Miuix home card uses the dynamic secondary container for its healthy
-            // state; keep the same role so the card follows Monet without hard-coded green.
-            container = MiuixTheme.colorScheme.secondaryContainer,
-            accent = MiuixTheme.colorScheme.primary,
+            container = MiuixTheme.colorScheme.primaryContainer,
+            accent = MiuixTheme.colorScheme.primary.copy(alpha = 0.8f),
             content = MiuixTheme.colorScheme.onPrimaryContainer,
         )
     } else {
@@ -176,9 +175,9 @@ private fun KernelStyleStatusCard(
     }
     val pendingPalette = if (monetEnabled) {
         StatusPalette(
-            container = MiuixTheme.colorScheme.tertiaryContainer,
-            accent = MiuixTheme.colorScheme.onTertiaryContainer,
-            content = MiuixTheme.colorScheme.onTertiaryContainer,
+            container = MiuixTheme.colorScheme.primaryContainer,
+            accent = MiuixTheme.colorScheme.primary.copy(alpha = 0.8f),
+            content = MiuixTheme.colorScheme.onPrimaryContainer,
         )
     } else {
         StatusPalette(
@@ -189,9 +188,9 @@ private fun KernelStyleStatusCard(
     }
     val inactivePalette = if (monetEnabled) {
         StatusPalette(
-            container = MiuixTheme.colorScheme.errorContainer,
-            accent = MiuixTheme.colorScheme.error,
-            content = MiuixTheme.colorScheme.onErrorContainer,
+            container = MiuixTheme.colorScheme.primaryContainer,
+            accent = MiuixTheme.colorScheme.primary.copy(alpha = 0.8f),
+            content = MiuixTheme.colorScheme.onPrimaryContainer,
         )
     } else {
         StatusPalette(

@@ -38,6 +38,10 @@ import androidx.compose.material.icons.rounded.Style
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -57,11 +61,14 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Slider
+import top.yukonga.miuix.kmp.basic.SliderDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -223,9 +230,12 @@ internal fun ThemeScreen(
                             },
                         )
                         AnimatedVisibility(visible = settings.predictiveBack) {
-                            OverlayDropdownPreference(
+                            var sliderValue by remember(settings.maxPredictiveBackProgress) {
+                                mutableFloatStateOf(settings.maxPredictiveBackProgress)
+                            }
+                            ArrowPreference(
                                 title = "最大预测返回进度",
-                                summary = "页面预览最多移动 ${(settings.maxPredictiveBackProgress * 100).roundToInt()}%",
+                                summary = "控制返回手势预览的最大页面位移",
                                 startAction = {
                                     Icon(
                                         Icons.AutoMirrored.Rounded.MenuOpen,
@@ -234,15 +244,29 @@ internal fun ThemeScreen(
                                         tint = MiuixTheme.colorScheme.onBackground,
                                     )
                                 },
-                                items = PREDICTIVE_BACK_MAX_PROGRESS_VALUES.map {
-                                    "${(it * 100).roundToInt()}%"
+                                endActions = {
+                                    Text(
+                                        text = "${(sliderValue * 100).roundToInt()}%",
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    )
                                 },
-                                selectedIndex = PREDICTIVE_BACK_MAX_PROGRESS_VALUES
-                                    .indexOf(settings.maxPredictiveBackProgress)
-                                    .coerceAtLeast(0),
-                                onSelectedIndexChange = { index ->
-                                    AppSettingsRepository.setMaxPredictiveBackProgress(
-                                        PREDICTIVE_BACK_MAX_PROGRESS_VALUES[index],
+                                onClick = {},
+                                bottomAction = {
+                                    Slider(
+                                        value = sliderValue,
+                                        onValueChange = { sliderValue = it },
+                                        onValueChangeFinished = {
+                                            AppSettingsRepository.setMaxPredictiveBackProgress(sliderValue)
+                                        },
+                                        valueRange = MIN_MAX_PREDICTIVE_BACK_PROGRESS..MAX_MAX_PREDICTIVE_BACK_PROGRESS,
+                                        showKeyPoints = true,
+                                        keyPoints = listOf(
+                                            MIN_MAX_PREDICTIVE_BACK_PROGRESS,
+                                            DEFAULT_MAX_PREDICTIVE_BACK_PROGRESS,
+                                            MAX_MAX_PREDICTIVE_BACK_PROGRESS,
+                                        ),
+                                        magnetThreshold = 0.01f,
+                                        hapticEffect = SliderDefaults.SliderHapticEffect.Step,
                                     )
                                 },
                             )
@@ -298,13 +322,3 @@ private fun ThemeColorSpec.displayName(): String = when (this) {
     ThemeColorSpec.Spec2021 -> "Material 2021"
     ThemeColorSpec.Spec2025 -> "Material 2025"
 }
-
-private val PREDICTIVE_BACK_MAX_PROGRESS_VALUES = listOf(
-    MIN_MAX_PREDICTIVE_BACK_PROGRESS,
-    0.25f,
-    0.30f,
-    DEFAULT_MAX_PREDICTIVE_BACK_PROGRESS,
-    0.40f,
-    0.45f,
-    MAX_MAX_PREDICTIVE_BACK_PROGRESS,
-)
