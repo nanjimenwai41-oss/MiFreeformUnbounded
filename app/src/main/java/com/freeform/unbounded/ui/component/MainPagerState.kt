@@ -70,11 +70,7 @@ internal class MainPagerState(
     }
 
     /** Applies the bounded part of a system predictive-back gesture to the current page. */
-    fun setPredictiveBackProgress(
-        progress: Float,
-        maxProgress: Float,
-        offsetDirection: Float = 1f,
-    ) {
+    fun setPredictiveBackProgress(progress: Float, maxProgress: Float) {
         if (selectedPage <= 0) return
 
         navJob?.cancel()
@@ -84,8 +80,7 @@ internal class MainPagerState(
         // Keep the gesture anchored to the page that was selected when it began. At the 50%
         // limit PagerState may otherwise promote the neighboring page to currentPage mid-gesture.
         val page = selectedPage.coerceAtLeast(1)
-        val offset = predictiveBackOffsetFraction(progress, maxProgress) *
-            offsetDirection.coerceIn(-1f, 1f)
+        val offset = -predictiveBackOffsetFraction(progress, maxProgress)
         predictiveBackJob = coroutineScope.launch {
             val myJob = coroutineContext.job
             try {
