@@ -288,14 +288,14 @@ private fun MainRoot(
 
         if (floating) {
             AnimatedContent(
-                targetState = tabs.size,
+                targetState = tabs,
                 transitionSpec = { fadeIn() togetherWith fadeOut() },
                 label = "bottom-bar-tabs",
                 modifier = Modifier.align(Alignment.BottomCenter),
-            ) {
+            ) { targetTabs ->
                 KernelStyleFloatingBar(
                     settings = settings,
-                    tabs = tabs,
+                    tabs = targetTabs,
                     selectedIndex = selectedPage,
                     onSelected = mainPagerState::animateToPage,
                     showStatusBadge = settings.navigationBadge && statusInactive,
