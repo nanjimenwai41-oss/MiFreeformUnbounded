@@ -93,6 +93,7 @@ internal fun ConfigScreen(
     val config by ConfigRepository.config.collectAsState()
     val context = LocalContext.current
     var showGlassWarning by remember { mutableStateOf(false) }
+    var showResetWarning by remember { mutableStateOf(false) }
     val blurBackdrop = rememberBlurBackdrop(enableBlur)
     val barColor = if (blurBackdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface
     val navigationBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -181,8 +182,7 @@ internal fun ConfigScreen(
                         title = "恢复默认配置",
                         summary = "边缘距离 196px · 两项模块功能均关闭",
                         onClick = {
-                            ConfigRepository.reset()
-                            Toast.makeText(context, "已恢复默认配置", Toast.LENGTH_SHORT).show()
+                            showResetWarning = true
                         },
                     )
                 }
@@ -195,6 +195,15 @@ internal fun ConfigScreen(
             onConfirm = {
                 ConfigRepository.setAodGlassEnabled(true)
                 showGlassWarning = false
+            },
+        )
+        ResetConfigWarningDialog(
+            show = showResetWarning,
+            onDismissRequest = { showResetWarning = false },
+            onConfirm = {
+                ConfigRepository.reset()
+                showResetWarning = false
+                Toast.makeText(context, "已恢复默认配置", Toast.LENGTH_SHORT).show()
             },
         )
     }
@@ -236,7 +245,11 @@ internal fun FreeformBoundaryScreen(
                     largeTitle = "自由窗口边界保护",
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "返回",
+                                tint = MiuixTheme.colorScheme.primary,
+                            )
                         }
                     },
                 )
@@ -622,6 +635,100 @@ private fun GlassClockWarningDialog(
                         Spacer(Modifier.width(20.dp))
                         TextButton(
                             text = "确认开启",
+                            onClick = onConfirm,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ResetConfigWarningDialog(
+    show: Boolean,
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val dialogState = remember { MutableTransitionState(false) }
+    LaunchedEffect(show) {
+        dialogState.targetState = show
+    }
+    if (!dialogState.currentState && !dialogState.targetState) return
+
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+        ),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .safeDrawingPadding()
+                .imePadding()
+                .padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            AnimatedVisibility(
+                visibleState = dialogState,
+                enter = slideInVertically(
+                    initialOffsetY = { it },
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessMediumLow,
+                    ),
+                ) + scaleIn(
+                    initialScale = 0.96f,
+                    transformOrigin = TransformOrigin(0.5f, 1f),
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessMediumLow,
+                    ),
+                ) + fadeIn(animationSpec = tween(100)),
+                exit = slideOutVertically(
+                    targetOffsetY = { it / 2 },
+                    animationSpec = tween(180),
+                ) + scaleOut(
+                    targetScale = 0.98f,
+                    transformOrigin = TransformOrigin(0.5f, 1f),
+                    animationSpec = tween(180),
+                ) + fadeOut(animationSpec = tween(120)),
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 640.dp),
+                    cornerRadius = 36.dp,
+                    insideMargin = PaddingValues(24.dp),
+                ) {
+                    Text(
+                        text = "恢复默认配置",
+                        style = MiuixTheme.textStyles.title3,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        text = "将边缘距离恢复为 196px，并关闭自由窗口边界保护和强制玻璃时钟。此操作会同步写入模块配置，是否继续？",
+                        style = MiuixTheme.textStyles.body1,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp, bottom = 20.dp),
+                    )
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        TextButton(
+                            text = "取消",
+                            onClick = onDismissRequest,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(20.dp))
+                        TextButton(
+                            text = "恢复默认",
                             onClick = onConfirm,
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.textButtonColorsPrimary(),

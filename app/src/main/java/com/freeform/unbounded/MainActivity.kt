@@ -35,6 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freeform.unbounded.ui.AboutScreen
@@ -49,6 +51,7 @@ import com.freeform.unbounded.ui.component.MainPagerState
 import com.freeform.unbounded.ui.component.rememberMainPagerState
 import com.freeform.unbounded.ui.theme.FreeformUnboundedTheme
 import com.freeform.unbounded.ui.rememberBlurBackdrop
+import androidx.navigationevent.NavigationEvent
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.compose.NavigationBackHandler
@@ -220,12 +223,20 @@ private fun MainScreenBackHandler(
 ) {
     val navigationEventState = rememberNavigationEventState(NavigationEventInfo.None)
     val transitionState = navigationEventState.transitionState
+    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     LaunchedEffect(transitionState, maxPredictiveBackProgress) {
         val inProgress = transitionState as? NavigationEventTransitionState.InProgress
         if (inProgress?.direction == NavigationEventTransitionState.TRANSITIONING_BACK) {
+            val edge = inProgress.latestEvent.swipeEdge
+            val offsetDirection = when (edge) {
+                NavigationEvent.EDGE_LEFT -> if (isRtl) -1f else 1f
+                NavigationEvent.EDGE_RIGHT -> if (isRtl) 1f else -1f
+                else -> if (isRtl) -1f else 1f
+            }
             mainPagerState.setPredictiveBackProgress(
                 progress = inProgress.latestEvent.progress,
                 maxProgress = maxPredictiveBackProgress,
+                offsetDirection = offsetDirection,
             )
         }
     }

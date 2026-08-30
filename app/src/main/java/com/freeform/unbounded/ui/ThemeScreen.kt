@@ -97,7 +97,15 @@ internal fun ThemeScreen(
                     color = barColor,
                     title = "主题设置",
                     largeTitle = "主题设置",
-                    navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") } },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowBack,
+                                "返回",
+                                tint = MiuixTheme.colorScheme.primary,
+                            )
+                        }
+                    },
                 )
             }
         },
@@ -130,7 +138,7 @@ internal fun ThemeScreen(
                     SwitchPreference(
                         title = "启用 Monet 颜色",
                         summary = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) "使用系统壁纸动态颜色" else "当前系统不支持动态取色",
-                        startAction = { Icon(Icons.Rounded.Wallpaper, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.onBackground) },
+                        startAction = { Icon(Icons.Rounded.Wallpaper, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
                         checked = settings.monetEnabled,
                         onCheckedChange = AppSettingsRepository::setMonetEnabled,
                     )
@@ -139,7 +147,7 @@ internal fun ThemeScreen(
                             OverlayDropdownPreference(
                                 title = "强调色",
                                 summary = keyColorLabels[keyColorValues.indexOf(settings.seedColor).coerceAtLeast(0)],
-                                startAction = { Icon(Icons.Rounded.Colorize, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.onBackground) },
+                                startAction = { Icon(Icons.Rounded.Colorize, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
                                 items = keyColorLabels,
                                 selectedIndex = keyColorValues.indexOf(settings.seedColor).coerceAtLeast(0),
                                 onSelectedIndexChange = { AppSettingsRepository.setSeedColor(keyColorValues[it]) },
@@ -149,7 +157,7 @@ internal fun ThemeScreen(
                                     OverlayDropdownPreference(
                                         title = "色彩风格",
                                         summary = settings.paletteStyle.displayName(),
-                                        startAction = { Icon(Icons.Rounded.Style, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.onBackground) },
+                                        startAction = { Icon(Icons.Rounded.Style, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
                                         items = ThemePaletteStyle.entries.map { it.displayName() },
                                         selectedIndex = ThemePaletteStyle.entries.indexOf(settings.paletteStyle).coerceAtLeast(0),
                                         onSelectedIndexChange = { AppSettingsRepository.setPaletteStyle(ThemePaletteStyle.entries[it]) },
@@ -158,7 +166,7 @@ internal fun ThemeScreen(
                                     OverlayDropdownPreference(
                                         title = "色彩规范",
                                         summary = settings.colorSpec.displayName(),
-                                        startAction = { Icon(Icons.Rounded.DesignServices, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.onBackground) },
+                                        startAction = { Icon(Icons.Rounded.DesignServices, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
                                         items = specs.map { it.displayName() },
                                         selectedIndex = specs.indexOf(settings.colorSpec).coerceAtLeast(0),
                                         onSelectedIndexChange = { AppSettingsRepository.setColorSpec(specs[it]) },
@@ -175,7 +183,7 @@ internal fun ThemeScreen(
                         SwitchPreference(
                             title = "模糊",
                             summary = "启用顶栏和底栏的模糊效果",
-                            startAction = { Icon(Icons.Rounded.BlurOn, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.onBackground) },
+                            startAction = { Icon(Icons.Rounded.BlurOn, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
                             checked = settings.enableBlur,
                             onCheckedChange = AppSettingsRepository::setEnableBlur,
                         )
@@ -183,7 +191,7 @@ internal fun ThemeScreen(
                     SwitchPreference(
                         title = "悬浮底栏",
                         summary = "使用 KernelSU 风格的悬浮底栏",
-                        startAction = { Icon(Icons.Rounded.CallToAction, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.onBackground) },
+                        startAction = { Icon(Icons.Rounded.CallToAction, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
                         checked = settings.floatingBottomBar,
                         onCheckedChange = AppSettingsRepository::setFloatingBottomBar,
                     )
@@ -193,7 +201,7 @@ internal fun ThemeScreen(
                         SwitchPreference(
                             title = "液态玻璃",
                             summary = "启用悬浮底栏的液态玻璃效果",
-                            startAction = { Icon(Icons.Rounded.WaterDrop, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.onBackground) },
+                            startAction = { Icon(Icons.Rounded.WaterDrop, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
                             checked = settings.floatingBottomBarBlur,
                             onCheckedChange = AppSettingsRepository::setFloatingBottomBarBlur,
                         )
@@ -201,7 +209,7 @@ internal fun ThemeScreen(
                     SwitchPreference(
                         title = "导航栏角标",
                         summary = "在导航栏显示激活状态提示",
-                        startAction = { Icon(Icons.Rounded.Notifications, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.onBackground) },
+                        startAction = { Icon(Icons.Rounded.Notifications, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
                         checked = settings.navigationBadge,
                         onCheckedChange = AppSettingsRepository::setNavigationBadge,
                     )
@@ -218,7 +226,7 @@ internal fun ThemeScreen(
                         SwitchPreference(
                             title = "预测性返回手势",
                             summary = "启用对预测性返回手势的支持。",
-                            startAction = { Icon(Icons.AutoMirrored.Rounded.MenuOpen, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.onBackground) },
+                            startAction = { Icon(Icons.AutoMirrored.Rounded.MenuOpen, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
                             checked = settings.predictiveBack,
                             onCheckedChange = {
                                 AppSettingsRepository.setPredictiveBack(it)
@@ -241,7 +249,7 @@ internal fun ThemeScreen(
                                         Icons.AutoMirrored.Rounded.MenuOpen,
                                         null,
                                         Modifier.padding(end = 6.dp),
-                                        tint = MiuixTheme.colorScheme.onBackground,
+                                        tint = MiuixTheme.colorScheme.primary,
                                     )
                                 },
                                 endActions = {

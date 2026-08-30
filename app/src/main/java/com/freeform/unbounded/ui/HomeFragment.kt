@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -157,48 +158,36 @@ private fun KernelStyleStatusCard(
     val inactive = !active && !pending
     val statusTextColor = if (isInDarkTheme()) Color.White else Color.Black
 
-    // Monet status cards stay in the primary (accent) family. Mapping the three states to
-    // secondary/tertiary/error containers makes a blue theme turn cyan or green, while the
-    // status shape and text already communicate the state independently.
-    val workingPalette = if (monetEnabled) {
+    // MIUIX can expose a stale green primaryContainer for some wallpaper palettes even when
+    // primary is blue. Blend the actual Monet primary over the surface so the card and glyph
+    // remain in one accent family. Status meaning is conveyed by the face and label, while the
+    // legacy red/yellow/green palette remains unchanged when Monet is disabled.
+    val monetPalette = if (monetEnabled) {
+        val primary = MiuixTheme.colorScheme.primary
         StatusPalette(
-            container = MiuixTheme.colorScheme.primaryContainer,
-            accent = MiuixTheme.colorScheme.primary.copy(alpha = 0.8f),
-            content = MiuixTheme.colorScheme.onPrimaryContainer,
+            container = primary.copy(alpha = if (isInDarkTheme()) 0.42f else 0.22f)
+                .compositeOver(MiuixTheme.colorScheme.surfaceContainer),
+            accent = primary,
+            content = Color.Black,
         )
     } else {
-        StatusPalette(
-            container = if (isInDarkTheme()) HyperGreenContainerDark else HyperGreenContainerLight,
-            accent = ActiveAccent,
-            content = statusTextColor,
-        )
+        null
     }
-    val pendingPalette = if (monetEnabled) {
-        StatusPalette(
-            container = MiuixTheme.colorScheme.primaryContainer,
-            accent = MiuixTheme.colorScheme.primary.copy(alpha = 0.8f),
-            content = MiuixTheme.colorScheme.onPrimaryContainer,
-        )
-    } else {
-        StatusPalette(
-            container = if (isInDarkTheme()) PendingContainerDark else PendingContainerLight,
-            accent = PendingAccent,
-            content = statusTextColor,
-        )
-    }
-    val inactivePalette = if (monetEnabled) {
-        StatusPalette(
-            container = MiuixTheme.colorScheme.primaryContainer,
-            accent = MiuixTheme.colorScheme.primary.copy(alpha = 0.8f),
-            content = MiuixTheme.colorScheme.onPrimaryContainer,
-        )
-    } else {
-        StatusPalette(
-            container = if (isInDarkTheme()) HyperRedContainerDark else HyperRedContainerLight,
-            accent = HyperRed,
-            content = statusTextColor,
-        )
-    }
+    val workingPalette = monetPalette ?: StatusPalette(
+        container = if (isInDarkTheme()) HyperGreenContainerDark else HyperGreenContainerLight,
+        accent = ActiveAccent,
+        content = statusTextColor,
+    )
+    val pendingPalette = monetPalette ?: StatusPalette(
+        container = if (isInDarkTheme()) PendingContainerDark else PendingContainerLight,
+        accent = PendingAccent,
+        content = statusTextColor,
+    )
+    val inactivePalette = monetPalette ?: StatusPalette(
+        container = if (isInDarkTheme()) HyperRedContainerDark else HyperRedContainerLight,
+        accent = HyperRed,
+        content = statusTextColor,
+    )
     val palette = when {
         active -> workingPalette
         pending -> pendingPalette
