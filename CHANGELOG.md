@@ -4,6 +4,14 @@
 
 ## 中文
 
+### v3.0.1 · 未发布
+
+- 修复首页状态卡在启用 Monet 时仍固定使用红黄绿的问题，改用动态主题容器色；关闭 Monet 时保留原有语义色。
+- 修复强制使用玻璃时钟确认弹窗动画，改为从底部滑入、回弹和自然淡入淡出。
+- 参考 KernelSU 的分页弹簧实现修复预测性返回进度，新增最大预测返回进度设置（20%–50%，默认 35%）。
+- 修复最小可见距离手动输入框在 Monet 主题下被染成绿色的问题，输入区域固定为白色。
+- 开发版本号更新为 `3.0.1`，版本号 `20260902`。
+
 ### v3.0.0 · 2026-09-01 · 正式版
 
 - 将自由窗口边界保护归类到独立的二级设置页面，新增顶部总开关；关闭时边缘距离和精细调节会灰显并且不可操作。
@@ -110,6 +118,14 @@
 - 某些设备需要完整重启，而不是仅重启 SystemUI，才能重新加载静态作用域。
 
 ## English
+
+### v3.0.1 · Unreleased
+
+- Fixed the home status card using hard-coded red, yellow, and green colors when Monet is enabled; it now uses dynamic theme container roles while preserving semantic colors when Monet is disabled.
+- Reworked the forced Glass clock confirmation dialog with a bottom slide, spring overshoot, and natural fade transitions.
+- Followed KernelSU's pager spring implementation to correct predictive-back progress and added a configurable maximum progress setting (20%–50%, 35% by default).
+- Fixed the minimum-visible-distance editor being tinted green under Monet; its input area is now explicitly white.
+- Bumped the development version to `3.0.1` with version code `20260902`.
 
 ### v3.0.0 · 2026-09-01 · Stable
 
