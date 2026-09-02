@@ -254,6 +254,8 @@ class HookProfilesTest {
             "void",
             listOf("com.miui.keyguard.editor.edit.color.ColorData"),
         ))
+        assertTrue(adapt.matches("updateClockColor", "void", emptyList()))
+        assertTrue(adapt.matches("updateClockColor", "void", listOf("int")))
         assertTrue(adapt.matches(
             "onColorPickComplete",
             "void",
@@ -269,6 +271,12 @@ class HookProfilesTest {
         val editor = rules.first { it.action == HookAction.PRESERVE_SUPER_WALLPAPER_EDITOR }
         assertTrue(editor.matches("supportSuperWallpaperMode", "boolean", emptyList()))
         assertTrue(editor.matches("isSupportDepth", "boolean", emptyList()))
+        assertTrue(editor.matches("isEditorSetLockWallpaper", "boolean", emptyList()))
+        assertTrue(editor.matches(
+            "isSupportHierarchy",
+            "boolean",
+            listOf("com.miui.keyguard.editor.data.bean.CommonConfig"),
+        ))
         assertTrue(editor.matches("supportFilter", "boolean", emptyList()))
         assertFalse(editor.matches("supportFilter", "void", emptyList()))
     }

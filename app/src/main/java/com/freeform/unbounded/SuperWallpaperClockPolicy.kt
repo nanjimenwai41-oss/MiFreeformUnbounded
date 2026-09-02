@@ -298,8 +298,14 @@ internal object SuperWallpaperClockPolicy {
         val values = readClockValuesFrom(data)?.remember()
             ?: readClockValuesFrom(target)?.remember()
             ?: return 0
-        if (!isSuperWallpaperTarget(target)) return 0
-        return applyClockValues(target, values, applyPosition = false)
+        // Static editor callbacks are emitted by BaseTemplateConfig/ClockInfo,
+        // before the SuperWallpaperClock exists. Always retain the values here;
+        // the later Super bind/update pass decides whether to apply them.
+        return if (isSuperWallpaperTarget(target)) {
+            applyClockValues(target, values, applyPosition = false)
+        } else {
+            0
+        }
     }
 
     private fun readColorDataValues(colorData: Any?): ClockValues? {
@@ -524,6 +530,36 @@ internal object SuperWallpaperClockPolicy {
         return applyClockValues(target, values, explicitSize, applyPosition)
     }
 
+    /** Resolves the live Super clock owned by AOD controller/container objects. */
+    fun applyClockFromContainer(
+        target: Any?,
+        explicitSize: Int? = null,
+    ): Int {
+        val receiver = target ?: return 0
+        val clock = receiver.readObject(
+            "mAodClock", "aodClock", "getAodClock",
+            "mClock", "clock", "getClock",
+        )
+        if (clock != null) {
+            return applyClockFromTarget(clock, explicitSize)
+        }
+        val controller = receiver.readObject(
+            "mAodStyleController", "aodStyleController", "getAodStyleController",
+        )
+        if (controller != null && controller !== receiver) {
+            val nested = applyClockFromContainer(controller, explicitSize)
+            if (nested > 0) return nested
+        }
+        val container = receiver.readObject(
+            "mAodContainerView", "aodContainerView", "getAodContainerView",
+        )
+        if (container != null && container !== receiver) {
+            val nested = applyClockFromContainer(container, explicitSize)
+            if (nested > 0) return nested
+        }
+        return 0
+    }
+
     /** Applies remembered category values to the view passed to SuperWallpaperCategoryInfo.setBg. */
     fun applyClockToView(category: Any?, view: Any?, explicitSize: Int? = null): Int {
         if (!isSuperWallpaperTarget(category) && !isSuperWallpaperTarget(view)) return 0
@@ -544,12 +580,17 @@ internal object SuperWallpaperClockPolicy {
             ?: readClockValuesFrom(target)?.remember()
             ?: rememberedValues
             ?: return 0
-        if (!isSuperWallpaperTarget(target) && !isSuperWallpaperTarget(styleInfo)) return 0
         val preview = target.readObject(
             "mPreview", "preview", "getPreview", "mPreviewContainer", "previewContainer",
             "mAodContainerView", "aodContainerView",
         ) ?: target
-        return applyClockValues(preview, values)
+        return if (isSuperWallpaperTarget(target) || isSuperWallpaperTarget(styleInfo) ||
+            isSuperWallpaperTarget(preview)
+        ) {
+            applyClockValues(preview, values)
+        } else {
+            0
+        }
     }
 
     /** Applies the selected style to a BaseStyleSelectView preview after reinflation. */

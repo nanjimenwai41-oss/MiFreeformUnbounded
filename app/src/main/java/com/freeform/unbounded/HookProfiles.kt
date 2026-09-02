@@ -125,16 +125,25 @@ internal data class MethodHookRule(
                 "onColorPickComplete" -> returnType == "void" && parameterTypes.size == 2 &&
                     parameterTypes[0] == "com.miui.keyguard.editor.edit.color.ColorData" &&
                     parameterTypes[1] == "boolean"
-                "updateClockColor" -> returnType == "void" && parameterTypes == listOf(
-                    "com.miui.keyguard.editor.edit.color.ColorData",
+                "updateClockColor" -> returnType == "void" && (
+                    parameterTypes.isEmpty() || parameterTypes == listOf("int") ||
+                        parameterTypes == listOf(
+                        "com.miui.keyguard.editor.edit.color.ColorData",
+                    )
                 )
                 else -> false
             }
             HookAction.DELEGATE_SUPER_WALLPAPER_SLIDE -> returnType == "void" &&
                 parameterTypes == listOf("android.view.View", "float")
             HookAction.PRESERVE_SUPER_WALLPAPER_EDITOR -> when (name) {
-                "isInValid", "supportSuperWallpaperMode", "isSupportDepth", "isSupportHierarchy" ->
+                "isEditorSetLockWallpaper" -> returnType == "boolean" && parameterTypes.isEmpty()
+                "isInValid", "supportSuperWallpaperMode", "isSupportDepth" ->
                     returnType == "boolean" && parameterTypes.isEmpty()
+                "isSupportHierarchy" -> returnType == "boolean" && (
+                    parameterTypes.isEmpty() || parameterTypes == listOf(
+                        "com.miui.keyguard.editor.data.bean.CommonConfig",
+                    )
+                )
                 "supportFilter" -> returnType == "boolean" && parameterTypes.isEmpty()
                 "getStyleInfo", "getClockStyleInfo" -> returnType == "com.miui.aod.common.StyleInfo" &&
                     parameterTypes == listOf("android.content.Context")
@@ -228,7 +237,8 @@ internal object HookProfiles {
 
     private val preserveSuperWallpaperEditor = MethodHookRule(
         names = setOf(
-            "isInValid", "supportSuperWallpaperMode", "isSupportDepth", "isSupportHierarchy", "supportFilter",
+            "isEditorSetLockWallpaper", "isInValid", "supportSuperWallpaperMode", "isSupportDepth",
+            "isSupportHierarchy", "supportFilter",
             "getStyleInfo", "getClockStyleInfo",
         ),
         action = HookAction.PRESERVE_SUPER_WALLPAPER_EDITOR,
@@ -283,6 +293,22 @@ internal object HookProfiles {
         ),
         ClassHookProfile(
             "com.miui.aod.AODStyleController",
+            listOf(adaptSuperWallpaperClock, preserveSuperWallpaperEditor),
+        ),
+        ClassHookProfile(
+            "com.miui.aod.AODView",
+            listOf(adaptSuperWallpaperClock),
+        ),
+        ClassHookProfile(
+            "com.miui.aod.components.view.AodContainerView",
+            listOf(adaptSuperWallpaperClock),
+        ),
+        ClassHookProfile(
+            "com.miui.keyguard.editor.data.template.TemplateApiImpl",
+            listOf(preserveSuperWallpaperEditor),
+        ),
+        ClassHookProfile(
+            "com.miui.keyguard.editor.edit.wallpaper.HierarchyImageView\$Companion",
             listOf(preserveSuperWallpaperEditor),
         ),
         ClassHookProfile(

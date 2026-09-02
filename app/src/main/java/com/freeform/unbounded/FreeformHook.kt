@@ -464,7 +464,9 @@ class FreeformHook : XposedModule() {
                     null
                 }
                 val templateConfig = if (method.name == "initTemplateBean") chain.getArg(0) else null
-                val colorData = if (method.name == "updateClockColor" || method.name == "onColorPickComplete") {
+                val colorData = if ((method.name == "updateClockColor" && method.parameterTypes.isNotEmpty()) ||
+                    method.name == "onColorPickComplete"
+                ) {
                     chain.getArg(0)
                 } else {
                     null
@@ -475,7 +477,13 @@ class FreeformHook : XposedModule() {
                         method.name == "onColorPickComplete" && colorData != null ->
                             SuperWallpaperClockPolicy.rememberClockData(target, colorData)
                         method.name == "updateClockColor" && colorData != null ->
-                            SuperWallpaperClockPolicy.applyColorData(target, colorData)
+                            if (colorData is Number) {
+                                SuperWallpaperClockPolicy.applyClockFromContainer(target)
+                            } else {
+                                SuperWallpaperClockPolicy.applyColorData(target, colorData)
+                            }
+                        method.name == "updateClockColor" ->
+                            SuperWallpaperClockPolicy.applyClockFromContainer(target)
                         styleInfo != null -> SuperWallpaperClockPolicy.applyStyleInfo(target, styleInfo)
                         extendedClockInfo != null ->
                             SuperWallpaperClockPolicy.applyStyleInfo(target, extendedClockInfo)
@@ -546,6 +554,13 @@ class FreeformHook : XposedModule() {
                     (0 until method.parameterTypes.size).any { index ->
                         SuperWallpaperClockPolicy.isSuperWallpaperTarget(chain.getArg(index))
                     }
+                if (method.name == "isEditorSetLockWallpaper") {
+                    // The stock gate only compares the editor package with the
+                    // package that last set the lock wallpaper. A Super wallpaper
+                    // is selected through AOD settings instead, so the package
+                    // comparison is false even though the clock is editable.
+                    return if (superTarget) true else chain.proceed()
+                }
                 if (method.name == "isInValid") {
                     if (superTarget) false else chain.proceed()
                 } else {
