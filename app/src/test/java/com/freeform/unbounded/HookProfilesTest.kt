@@ -233,4 +233,104 @@ class HookProfilesTest {
             )
         })
     }
+
+    @Test
+    fun superWallpaperRulesMatchBothClockBindViewOverloadsAndEditorCapabilities() {
+        val rules = HookProfiles.aod.flatMap { it.rules }
+        val adapt = rules.first { it.action == HookAction.ADAPT_SUPER_WALLPAPER_CLOCK }
+        assertTrue(adapt.matches("bindView", "void", emptyList()))
+        assertTrue(adapt.matches("bindView", "void", listOf("android.view.View")))
+        assertTrue(adapt.matches("setSize", "void", listOf("int")))
+        assertTrue(adapt.matches("update", "void", listOf("com.miui.aod.common.StyleInfo", "int")))
+        assertTrue(adapt.matches("initClock", "void", emptyList()))
+        assertTrue(adapt.matches("copyExtendedInfoToClockBean", "void", listOf(
+            "com.miui.clock.module.ClockBean",
+            "com.miui.keyguard.editor.data.bean.ClockInfo",
+        )))
+        assertTrue(adapt.matches("setData", "void", listOf("float", "float", "float", "float", "int")))
+        assertTrue(adapt.matches("setBg", "void", listOf("android.view.View", "int")))
+        assertTrue(adapt.matches(
+            "updateClockColor",
+            "void",
+            listOf("com.miui.keyguard.editor.edit.color.ColorData"),
+        ))
+        assertTrue(adapt.matches(
+            "onColorPickComplete",
+            "void",
+            listOf("com.miui.keyguard.editor.edit.color.ColorData", "boolean"),
+        ))
+        assertFalse(adapt.matches("setBg", "boolean", listOf("android.view.View", "int")))
+        assertFalse(adapt.matches("bindView", "int", emptyList()))
+
+        val slide = rules.first { it.action == HookAction.DELEGATE_SUPER_WALLPAPER_SLIDE }
+        assertTrue(slide.matches("onSlide", "void", listOf("android.view.View", "float")))
+        assertFalse(slide.matches("onSlide", "void", listOf("android.view.View")))
+
+        val editor = rules.first { it.action == HookAction.PRESERVE_SUPER_WALLPAPER_EDITOR }
+        assertTrue(editor.matches("supportSuperWallpaperMode", "boolean", emptyList()))
+        assertTrue(editor.matches("isSupportDepth", "boolean", emptyList()))
+        assertTrue(editor.matches("supportFilter", "boolean", emptyList()))
+        assertFalse(editor.matches("supportFilter", "void", emptyList()))
+    }
+
+    @Test
+    fun systemUiDepthRulesMatchControllerGateAndSetter() {
+        val rules = HookProfiles.systemUi.flatMap { it.rules }
+        val depth = rules.first { it.action == HookAction.PRESERVE_SUPER_WALLPAPER_DEPTH }
+        assertTrue(depth.matches("isWallpaperSupportDepth", "boolean", emptyList()))
+        assertTrue(depth.matches("setWallpaperSupportDepth", "void", listOf("boolean")))
+        assertFalse(depth.matches("setWallpaperSupportDepth", "boolean", listOf("boolean")))
+        assertFalse(depth.matches("isWallpaperSupportDepth", "boolean", listOf("boolean")))
+    }
+
+    @Test
+    fun superWallpaperEditorProfilesCoverStyleLookupsAndPreviewRefresh() {
+        val rules = HookProfiles.aod.flatMap { it.rules }
+        val editorRules = rules.filter { it.action == HookAction.PRESERVE_SUPER_WALLPAPER_EDITOR }
+        assertTrue(
+            editorRules.any { it.matches(
+                "getStyleInfo",
+                "com.miui.aod.common.StyleInfo",
+                listOf("android.content.Context"),
+            ) },
+        )
+        assertTrue(
+            editorRules.any { it.matches(
+                "getClockStyleInfo",
+                "com.miui.aod.common.StyleInfo",
+                listOf("android.content.Context"),
+            ) },
+        )
+
+        assertTrue(
+            rules.any { it.action == HookAction.ADAPT_SUPER_WALLPAPER_CLOCK && it.matches(
+                "updateAODStyle",
+                "com.miui.aod.widget.IAodClock",
+                listOf("com.miui.aod.common.StyleInfo"),
+            ) },
+        )
+        assertTrue(
+            rules.any { it.action == HookAction.ADAPT_SUPER_WALLPAPER_CLOCK && it.matches(
+                "initStyleInfoSelected",
+                "com.miui.aod.widget.IAodClock",
+                listOf("java.lang.String", "java.lang.String", "android.os.Bundle"),
+            ) },
+        )
+        assertTrue(
+            rules.any { it.action == HookAction.ADAPT_SUPER_WALLPAPER_CLOCK && it.matches(
+                "updateStyleInfoForPreview",
+                "com.miui.aod.widget.IAodClock",
+                emptyList(),
+            ) },
+        )
+    }
+
+    @Test
+    fun blankSuperWallpaperCategoryUsesTheSameClockAdapter() {
+        val profile = HookProfiles.aod.first {
+            it.className == "com.miui.aod.category.BlankSuperWallpaperCategoryInfo"
+        }
+        assertTrue(profile.rules.any { it.action == HookAction.ADAPT_SUPER_WALLPAPER_CLOCK })
+        assertTrue(profile.rules.any { it.action == HookAction.PRESERVE_SUPER_WALLPAPER_EDITOR })
+    }
 }

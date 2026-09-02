@@ -23,8 +23,10 @@ class FreeformHook : XposedModule() {
     private val horizontalDragSession = ThreadLocal<HorizontalDragSession?>()
     private val loadedConfig = AtomicReference<HookConfig?>()
     private val dynamicGlassWallpaper = ThreadLocal.withInitial { false }
+    private val currentProcessName = AtomicReference<String?>(null)
 
     override fun onModuleLoaded(param: ModuleLoadedParam) {
+        currentProcessName.set(param.processName)
         log(
             Log.INFO,
             TAG,
@@ -41,7 +43,11 @@ class FreeformHook : XposedModule() {
                 loadedConfig.set(readConfig())
                 installProfiles(HookProfiles.systemUi, param.classLoader, PACKAGE_SYSTEM_UI)
             }
-            PACKAGE_AOD -> installProfiles(HookProfiles.aod, param.classLoader, PACKAGE_AOD)
+            PACKAGE_AOD -> installProfiles(
+                HookProfiles.aod,
+                param.classLoader,
+                "$PACKAGE_AOD@${currentProcessName.get().orEmpty()}",
+            )
         }
     }
 
@@ -183,6 +189,7 @@ class FreeformHook : XposedModule() {
         val featureEnabled = when {
             rule.action in FREEFORM_ACTIONS -> config.freeformBoundaryEnabled
             rule.action in AOD_GLASS_ACTIONS -> config.aodGlassEnabled
+            rule.action in AOD_SUPER_WALLPAPER_ACTIONS -> true
             else -> true
         }
         if (!featureEnabled) {
@@ -437,6 +444,150 @@ class FreeformHook : XposedModule() {
                         restoreSystemUiGlassBean(clockBean, hookId, "in SystemUI for dynamic wallpaper")
                     }
                     chain.proceed()
+                }
+            }
+
+            HookAction.ADAPT_SUPER_WALLPAPER_CLOCK -> {
+                val target = chain.getThisObject()
+                val explicitSize = if (method.name == "setSize") {
+                    (chain.getArg(0) as? Number)?.toInt()
+                } else {
+                    null
+                }
+                val styleInfo = when (method.name) {
+                    "update", "updateAODStyle" -> chain.getArg(0)
+                    else -> null
+                }
+                val extendedClockInfo = if (method.name == "copyExtendedInfoToClockBean") {
+                    chain.getArg(1)
+                } else {
+                    null
+                }
+                val templateConfig = if (method.name == "initTemplateBean") chain.getArg(0) else null
+                val colorData = if (method.name == "updateClockColor" || method.name == "onColorPickComplete") {
+                    chain.getArg(0)
+                } else {
+                    null
+                }
+                val result = chain.proceed()
+                runCatching {
+                    when {
+                        method.name == "onColorPickComplete" && colorData != null ->
+                            SuperWallpaperClockPolicy.rememberClockData(target, colorData)
+                        method.name == "updateClockColor" && colorData != null ->
+                            SuperWallpaperClockPolicy.applyColorData(target, colorData)
+                        styleInfo != null -> SuperWallpaperClockPolicy.applyStyleInfo(target, styleInfo)
+                        extendedClockInfo != null ->
+                            SuperWallpaperClockPolicy.applyStyleInfo(target, extendedClockInfo)
+                        templateConfig != null -> {
+                            SuperWallpaperClockPolicy.applyStyleInfo(target, templateConfig)
+                            SuperWallpaperClockPolicy.applyClockFromTarget(target, explicitSize)
+                        }
+                        method.name == "setBg" -> {
+                            // setBg receives the actual clock/content container while
+                            // the category owns the persisted position fields.
+                            SuperWallpaperClockPolicy.applyClockToView(
+                                target,
+                                chain.getArg(0),
+                                explicitSize,
+                            )
+                        }
+                        method.name == "setData" -> {
+                            // setData(FFFFI) has just written the category's
+                            // native coordinates. Apply remembered clock
+                            // appearance without replacing those coordinates.
+                            SuperWallpaperClockPolicy.applyClockFromTarget(
+                                target,
+                                explicitSize,
+                                applyPosition = false,
+                            )
+                        }
+                        method.name == "updateStyleInfoForPreview" || method.name == "initStyleInfoSelected" ->
+                            SuperWallpaperClockPolicy.applyEditorPreview(target)
+                        else -> SuperWallpaperClockPolicy.applyClockFromTarget(target, explicitSize)
+                    }
+                }.onFailure { error ->
+                    logLimited(
+                        Log.DEBUG,
+                        "adapt:$hookId",
+                        "Super wallpaper clock adaptation failed for ${method.name}",
+                        error,
+                    )
+                }
+                result
+            }
+
+            HookAction.DELEGATE_SUPER_WALLPAPER_SLIDE -> {
+                val result = chain.proceed()
+                val offset = (chain.getArg(1) as? Number)?.toFloat()
+                if (offset != null &&
+                    SuperWallpaperClockPolicy.invokeBaseSlide(
+                        chain.getThisObject(),
+                        chain.getArg(0),
+                        offset,
+                    )
+                ) {
+                    logLimited(Log.DEBUG, hookId, "Delegated Super wallpaper style slide to BaseStyleSelectView")
+                }
+                result
+            }
+
+            HookAction.PRESERVE_SUPER_WALLPAPER_EDITOR -> {
+                val target = chain.getThisObject()
+                if (method.name == "getStyleInfo" || method.name == "getClockStyleInfo") {
+                    val stockResult = chain.proceed()
+                    return SuperWallpaperClockPolicy.forceSuperWallpaperStyleResult(
+                        method.name,
+                        Array(method.parameterTypes.size) { index -> chain.getArg(index) },
+                        stockResult,
+                    )
+                }
+                val superTarget = SuperWallpaperClockPolicy.isSuperWallpaperTarget(target) ||
+                    (0 until method.parameterTypes.size).any { index ->
+                        SuperWallpaperClockPolicy.isSuperWallpaperTarget(chain.getArg(index))
+                    }
+                if (method.name == "isInValid") {
+                    if (superTarget) false else chain.proceed()
+                } else {
+                    val stockResult = chain.proceed()
+                    if (superTarget && stockResult is Boolean) true else stockResult
+                }
+            }
+
+            HookAction.PRESERVE_SUPER_WALLPAPER_DEPTH -> {
+                val target = chain.getThisObject()
+                val depthTarget = SuperWallpaperClockPolicy.shouldForceWallpaperDepth(target) ||
+                    (0 until method.parameterTypes.size).any { index ->
+                        SuperWallpaperClockPolicy.shouldForceWallpaperDepth(chain.getArg(index))
+                    }
+                val stockResult = chain.proceed()
+                if (!depthTarget) {
+                    stockResult
+                } else {
+                    // MIUI stores an explicit override (1/2) before it consults
+                    // wallpaper_matting_support_2. A Super wallpaper must remain
+                    // enabled even when that setting or a stale editor callback says
+                    // unsupported, so repair both cached flags and the live clock view.
+                    val repaired = SuperWallpaperClockPolicy.forceWallpaperDepth(target)
+                    if (method.name == "isWallpaperSupportDepth") {
+                        if (repaired || stockResult == false) {
+                            logLimited(
+                                Log.INFO,
+                                hookId,
+                                "Enabled depth support for Super wallpaper (stock=$stockResult)",
+                            )
+                        }
+                        true
+                    } else {
+                        if ((chain.getArg(0) as? Boolean) == false && repaired) {
+                            logLimited(
+                                Log.INFO,
+                                hookId,
+                                "Repaired Super wallpaper depth state after a stock disable",
+                            )
+                        }
+                        stockResult
+                    }
                 }
             }
         }
@@ -744,6 +895,12 @@ class FreeformHook : XposedModule() {
             HookAction.ALLOW_GLASS_WALLPAPER_FILTER,
             HookAction.SKIP_GLASS_FILTER_DISABLE,
             HookAction.PRESERVE_GLASS_SYSTEMUI,
+        )
+        private val AOD_SUPER_WALLPAPER_ACTIONS = setOf(
+            HookAction.ADAPT_SUPER_WALLPAPER_CLOCK,
+            HookAction.DELEGATE_SUPER_WALLPAPER_SLIDE,
+            HookAction.PRESERVE_SUPER_WALLPAPER_EDITOR,
+            HookAction.PRESERVE_SUPER_WALLPAPER_DEPTH,
         )
         private val SCALE_X_METHODS = setOf("getScaleX", "scaleX")
         private val SCALE_Y_METHODS = setOf("getScaleY", "scaleY")

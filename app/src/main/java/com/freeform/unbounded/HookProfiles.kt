@@ -15,6 +15,14 @@ internal enum class HookAction {
     ALLOW_GLASS_WALLPAPER_FILTER,
     SKIP_GLASS_FILTER_DISABLE,
     PRESERVE_GLASS_SYSTEMUI,
+    /** Reuses the static-clock edit values in the Super wallpaper clock path. */
+    ADAPT_SUPER_WALLPAPER_CLOCK,
+    /** The Super wallpaper style selector currently overrides the base callback with a no-op. */
+    DELEGATE_SUPER_WALLPAPER_SLIDE,
+    /** Keeps the editor's hierarchy/depth capability available for Super wallpapers. */
+    PRESERVE_SUPER_WALLPAPER_EDITOR,
+    /** Keeps SystemUI's depth state enabled for Super/depth wallpapers. */
+    PRESERVE_SUPER_WALLPAPER_DEPTH,
 }
 
 internal data class MethodHookRule(
@@ -79,15 +87,65 @@ internal data class MethodHookRule(
                 parameterTypes.size == 1
             HookAction.SKIP_GLASS_FILTER_DISABLE -> returnType == "void" &&
                 parameterTypes.size <= 1
-            HookAction.PRESERVE_GLASS_SYSTEMUI -> returnType == "void" &&
+            HookAction.PRESERVE_GLASS_SYSTEMUI -> (returnType == "void" &&
                 parameterTypes == listOf(
                     "boolean",
                     "boolean",
                     "com.miui.clock.module.ClockBean",
-                ) ||
-                (name == "getClockBeanFromSetting" &&
+                )) || (name == "getClockBeanFromSetting" &&
                     returnType == "com.miui.clock.module.ClockBean" &&
                     (parameterTypes.isEmpty() || parameterTypes == listOf("java.lang.String")))
+            HookAction.ADAPT_SUPER_WALLPAPER_CLOCK -> when (name) {
+                "bindView" -> returnType == "void" &&
+                    (parameterTypes.isEmpty() || parameterTypes == listOf("android.view.View"))
+                "initClock" -> returnType == "void" && parameterTypes.isEmpty()
+                "setSize" -> returnType == "void" && parameterTypes == listOf("int")
+                "onLayout" -> returnType == "void" && parameterTypes ==
+                    listOf("boolean", "int", "int", "int", "int")
+                "updateClockPositionByTime" -> returnType == "void" && parameterTypes == listOf("boolean")
+                "update" -> returnType == "void" && parameterTypes.size == 2 &&
+                    parameterTypes[1] == "int"
+                "initTemplateBean" -> returnType == "void" && parameterTypes.size == 1 &&
+                    parameterTypes[0].endsWith(".TemplateConfig")
+                "copyExtendedInfoToClockBean" -> returnType == "void" && parameterTypes == listOf(
+                    "com.miui.clock.module.ClockBean",
+                    "com.miui.keyguard.editor.data.bean.ClockInfo",
+                )
+                "onMiuiClockViewCreated" -> returnType == "void" && parameterTypes.isEmpty()
+                "setData" -> returnType == "void" && parameterTypes.size == 5 &&
+                    parameterTypes.take(4).all { it == "float" } && parameterTypes[4] == "int"
+                "setBg" -> returnType == "void" && parameterTypes ==
+                    listOf("android.view.View", "int")
+                "updateAODStyle" -> returnType == "com.miui.aod.widget.IAodClock" &&
+                    parameterTypes == listOf("com.miui.aod.common.StyleInfo")
+                "updateStyleInfoForPreview" -> returnType == "com.miui.aod.widget.IAodClock" &&
+                    parameterTypes.isEmpty()
+                "initStyleInfoSelected" -> returnType == "com.miui.aod.widget.IAodClock" &&
+                    parameterTypes == listOf("java.lang.String", "java.lang.String", "android.os.Bundle")
+                "onColorPickComplete" -> returnType == "void" && parameterTypes.size == 2 &&
+                    parameterTypes[0] == "com.miui.keyguard.editor.edit.color.ColorData" &&
+                    parameterTypes[1] == "boolean"
+                "updateClockColor" -> returnType == "void" && parameterTypes == listOf(
+                    "com.miui.keyguard.editor.edit.color.ColorData",
+                )
+                else -> false
+            }
+            HookAction.DELEGATE_SUPER_WALLPAPER_SLIDE -> returnType == "void" &&
+                parameterTypes == listOf("android.view.View", "float")
+            HookAction.PRESERVE_SUPER_WALLPAPER_EDITOR -> when (name) {
+                "isInValid", "supportSuperWallpaperMode", "isSupportDepth", "isSupportHierarchy" ->
+                    returnType == "boolean" && parameterTypes.isEmpty()
+                "supportFilter" -> returnType == "boolean" && parameterTypes.isEmpty()
+                "getStyleInfo", "getClockStyleInfo" -> returnType == "com.miui.aod.common.StyleInfo" &&
+                    parameterTypes == listOf("android.content.Context")
+                else -> false
+            }
+            HookAction.PRESERVE_SUPER_WALLPAPER_DEPTH -> when (name) {
+                "isWallpaperSupportDepth" -> returnType == "boolean" && parameterTypes.isEmpty()
+                "setWallpaperSupportDepth" -> returnType == "void" &&
+                    parameterTypes == listOf("boolean")
+                else -> false
+            }
         }
     }
 }
@@ -152,6 +210,35 @@ internal object HookProfiles {
         action = HookAction.PRESERVE_GLASS_SYSTEMUI,
     )
 
+    private val adaptSuperWallpaperClock = MethodHookRule(
+        names = setOf(
+            "bindView", "setSize", "onLayout", "updateClockPositionByTime", "update",
+            "initClock", "initTemplateBean", "copyExtendedInfoToClockBean",
+            "onMiuiClockViewCreated", "setData", "setBg",
+            "updateAODStyle", "updateStyleInfoForPreview", "initStyleInfoSelected", "onColorPickComplete",
+            "updateClockColor",
+        ),
+        action = HookAction.ADAPT_SUPER_WALLPAPER_CLOCK,
+    )
+
+    private val delegateSuperWallpaperSlide = MethodHookRule(
+        names = setOf("onSlide"),
+        action = HookAction.DELEGATE_SUPER_WALLPAPER_SLIDE,
+    )
+
+    private val preserveSuperWallpaperEditor = MethodHookRule(
+        names = setOf(
+            "isInValid", "supportSuperWallpaperMode", "isSupportDepth", "isSupportHierarchy", "supportFilter",
+            "getStyleInfo", "getClockStyleInfo",
+        ),
+        action = HookAction.PRESERVE_SUPER_WALLPAPER_EDITOR,
+    )
+
+    private val preserveSuperWallpaperDepth = MethodHookRule(
+        names = setOf("isWallpaperSupportDepth", "setWallpaperSupportDepth"),
+        action = HookAction.PRESERVE_SUPER_WALLPAPER_DEPTH,
+    )
+
     val systemServer = emptyList<ClassHookProfile>()
 
     val systemUi = listOf(
@@ -173,7 +260,7 @@ internal object HookProfiles {
         ),
         ClassHookProfile(
             "com.miui.clock.MiuiClockController",
-            listOf(preserveGlassSystemUi),
+            listOf(preserveGlassSystemUi, preserveSuperWallpaperDepth),
         ),
     )
 
@@ -184,7 +271,51 @@ internal object HookProfiles {
         ),
         ClassHookProfile(
             "com.miui.keyguard.editor.edit.base.EffectsTemplateView",
-            listOf(allowGlassWallpaperFilter, skipGlassFilterDisable),
+            listOf(allowGlassWallpaperFilter, skipGlassFilterDisable, preserveSuperWallpaperEditor),
+        ),
+        ClassHookProfile(
+            "com.miui.aod.components.view.SuperWallpaperStyleSelectView",
+            listOf(delegateSuperWallpaperSlide),
+        ),
+        ClassHookProfile(
+            "com.miui.aod.components.view.BaseStyleSelectView",
+            listOf(adaptSuperWallpaperClock),
+        ),
+        ClassHookProfile(
+            "com.miui.aod.AODStyleController",
+            listOf(preserveSuperWallpaperEditor),
+        ),
+        ClassHookProfile(
+            "com.miui.aod.widget.AODSettings",
+            listOf(preserveSuperWallpaperEditor),
+        ),
+        ClassHookProfile(
+            "com.miui.aod.category.SuperWallpaperCategoryInfo",
+            listOf(adaptSuperWallpaperClock, preserveSuperWallpaperEditor),
+        ),
+        ClassHookProfile(
+            "com.miui.aod.category.BlankSuperWallpaperCategoryInfo",
+            listOf(adaptSuperWallpaperClock, preserveSuperWallpaperEditor),
+        ),
+        ClassHookProfile(
+            "com.miui.aod.widget.SuperWallpaperClock",
+            listOf(adaptSuperWallpaperClock),
+        ),
+        ClassHookProfile(
+            "com.miui.aod.widget.SuperWallpaperClockView",
+            listOf(adaptSuperWallpaperClock),
+        ),
+        ClassHookProfile(
+            "com.miui.aod.template.data.template.base.BaseTemplateConfig",
+            listOf(adaptSuperWallpaperClock),
+        ),
+        ClassHookProfile(
+            "com.miui.aod.template.data.template.classicclock.AllInOneTemplateConfig",
+            listOf(adaptSuperWallpaperClock),
+        ),
+        ClassHookProfile(
+            "com.miui.aod.common.StyleInfo",
+            listOf(adaptSuperWallpaperClock, preserveSuperWallpaperEditor),
         ),
     )
 }
