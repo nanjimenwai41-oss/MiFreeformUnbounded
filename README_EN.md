@@ -17,7 +17,7 @@ A freeform-window boundary and lock-screen glass-clock module for HyperOS 3/4. I
 - A three-page Compose/MIUIX UI: Home, Settings, and About, with separate System UI and lock-screen editor restart actions.
 - Freeform boundary and forced glass-clock switches, edge-distance slider, fine adjustment, reset-to-default action, light/dark themes, system Monet, palette styles, and color specifications.
 - Floating navigation bar, liquid-glass effects, navigation status badges, and predictive back support.
-- A scoped lock-screen editor hook that forces the all-in-one clock's glass-clock effect in dynamic and Super wallpaper scenes while preserving stock behavior elsewhere.
+- An optional System UI hook that reuses the dynamic-video wallpaper depth algorithm for Super wallpapers while preserving stock behavior for other wallpaper types.
 - Preserves the glass-clock effect during wallpaper switching and prevents dynamic-wallpaper filter cleanup from reverting it.
 - Settings remain reachable while the module is inactive; the edge-adjustment card becomes disabled and shows “模块未激活” when tapped.
 - Freeform boundary protection has a dedicated secondary settings page. Its master switch controls edge distance and fine adjustment; when disabled, all subordinate controls are dimmed and non-interactive.
@@ -56,7 +56,8 @@ When the module is inactive, the Settings page remains available, but the edge-a
 
 - **Freeform boundary protection**: the secondary-page master switch; when disabled, SystemUI freeform hooks call the stock implementation without changes and the edge controls are disabled.
 - **Force lock-screen glass clock**: enabling it requires confirmation of the power and material limitations; it forces the lock-screen glass clock in unsupported scenes, while disabling it restores the stock lock-screen editor restrictions.
-- Switches and edge distance are stored in shared module/target preferences; restart the corresponding process after changing them. The Settings reset action restores `196px` and disables both features.
+- **Super wallpaper depth**: reuses the dynamic-video wallpaper safe area and avoidance rectangle for the current Super wallpaper only; restart System UI after changing it.
+- Switches and edge distance are stored in shared module/target preferences; restart the corresponding process after changing them. The Settings reset action restores `196px` and disables all features.
 
 ### Theme and navigation
 

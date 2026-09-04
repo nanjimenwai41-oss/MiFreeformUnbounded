@@ -23,13 +23,13 @@ jobs:
       - name: Make Gradle Wrapper executable
         run: chmod +x ./gradlew
 
-      - name: Configure shared Debug signing key when available
+      - name: Configure shared Debug signing key when provided
         env:
           DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
         run: |
           if [ -z "$DEBUG_KEYSTORE_BASE64" ]; then
-            echo "::error::Configure DEBUG_KEYSTORE_BASE64 before running CI."
-            exit 1
+            echo "DEBUG_KEYSTORE_BASE64 is not configured; using the standard Android Debug keystore."
+            exit 0
           fi
           mkdir -p .signing
           printf '%s' "$DEBUG_KEYSTORE_BASE64" | base64 --decode > .signing/mifreeform-debug.jks

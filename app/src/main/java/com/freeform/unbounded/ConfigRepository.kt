@@ -45,6 +45,10 @@ internal object ConfigRepository {
         it.copy(aodGlassEnabled = enabled)
     }
 
+    fun setSuperWallpaperDepthEnabled(enabled: Boolean) = update {
+        it.copy(superWallpaperDepthEnabled = enabled)
+    }
+
     fun reset() {
         update { AppConfig() }
     }

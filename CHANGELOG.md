@@ -11,7 +11,7 @@
 - 参考 KernelSU 的分页弹簧和滑条交互修复预测性返回进度，新增最大预测返回进度滑条（20%–50%，默认 35%）。
 - 修复最小可见距离手动输入框在 Monet 主题下被染成绿色的问题，输入区域固定为白色。
 - 开发版本号更新为 `3.0.1`，版本号 `20260902`。
-- 超级壁纸编辑器接入静态时钟编辑数据，支持颜色、尺寸、位置和景深；SystemUI 深度支持状态在超级/景深壁纸下保持开启；Glass 材质保持用户选择，不因适配逻辑强制开启。
+- 移除超级壁纸编辑器和时钟适配 Hook，改为新增可选的超级壁纸景深功能；该功能在 SystemUI 中复用动态视频壁纸的景深安全区算法，并保留普通动态壁纸和静态壁纸的系统原行为。
 
 ### v3.0.0 · 2026-09-01 · 正式版
 
@@ -127,7 +127,7 @@
 - Followed KernelSU's pager spring implementation to correct predictive-back progress and added a configurable maximum progress setting (20%–50%, 35% by default).
 - Fixed the minimum-visible-distance editor being tinted green under Monet; its input area is now explicitly white.
 - Bumped the development version to `3.0.1` with version code `20260902`.
-- Reused the static-clock editor data in the Super wallpaper editor for color, size, position, and depth; SystemUI depth support stays enabled for Super/depth wallpapers, while Glass remains the user's choice and is never forced by the adapter.
+- Removed the Super wallpaper editor and clock-adaptation hooks. Added an optional System UI path that reuses the dynamic-video wallpaper depth safe-area algorithm for Super wallpapers while preserving stock behavior for ordinary video and static wallpapers.
 
 ### v3.0.0 · 2026-09-01 · Stable
 

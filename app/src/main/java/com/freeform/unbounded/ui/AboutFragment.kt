@@ -116,7 +116,7 @@ internal fun AboutScreen(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        "本模块 Hook 了系统界面和息屏与锁屏编辑两个应用：在系统界面中提供自由小窗边界保护，适用于 HyperOS 3/4；在息屏与锁屏编辑中，当场景不支持玻璃时钟（例如动态壁纸和超级壁纸）时强制使用锁屏玻璃时钟，该功能仅适用于 HyperOS 4。修改设置后，请重启系统界面和息屏与锁屏编辑，重启操作需要 ROOT 权限。",
+                        "本模块 Hook 了系统界面和息屏与锁屏编辑两个应用：在系统界面中提供自由小窗边界保护，以及可选的超级壁纸景深；在息屏与锁屏编辑中，当场景不支持玻璃时钟（例如动态壁纸）时可强制使用锁屏玻璃时钟。超级壁纸景深复用动态视频壁纸算法，修改后请重启系统界面；玻璃时钟修改后还需重启息屏与锁屏编辑。重启操作需要 ROOT 权限。",
                         style = MiuixTheme.textStyles.body1,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.padding(top = 8.dp),

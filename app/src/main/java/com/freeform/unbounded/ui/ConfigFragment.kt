@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Wallpaper
+import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.animation.core.MutableTransitionState
@@ -164,6 +165,20 @@ internal fun ConfigScreen(
                             }
                         },
                     )
+                    SwitchPreference(
+                        title = "超级壁纸景深",
+                        summary = "将动态视频壁纸的景深算法用于超级壁纸；修改后请重启系统界面，重启后生效",
+                        startAction = {
+                            Icon(
+                                Icons.Rounded.Layers,
+                                contentDescription = null,
+                                modifier = Modifier.padding(end = 6.dp),
+                                tint = MiuixTheme.colorScheme.primary,
+                            )
+                        },
+                        checked = config.superWallpaperDepthEnabled,
+                        onCheckedChange = ConfigRepository::setSuperWallpaperDepthEnabled,
+                    )
                 }
             }
             item { SectionLabel("外观") }
@@ -180,7 +195,7 @@ internal fun ConfigScreen(
                 Card(modifier = Modifier.fillMaxWidth()) {
                     ArrowPreference(
                         title = "恢复默认配置",
-                        summary = "边缘距离 196px · 两项模块功能均关闭",
+                        summary = "边缘距离 196px · 模块功能均关闭",
                         onClick = {
                             showResetWarning = true
                         },
@@ -713,7 +728,7 @@ private fun ResetConfigWarningDialog(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Text(
-                        text = "将边缘距离恢复为 196px，并关闭自由窗口边界保护和强制玻璃时钟。此操作会同步写入模块配置，是否继续？",
+                        text = "将边缘距离恢复为 196px，并关闭自由窗口边界保护、强制玻璃时钟和超级壁纸景深。此操作会同步写入模块配置，是否继续？",
                         style = MiuixTheme.textStyles.body1,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier

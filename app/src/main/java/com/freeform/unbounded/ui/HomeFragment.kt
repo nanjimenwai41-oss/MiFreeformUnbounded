@@ -396,6 +396,14 @@ private fun RuntimeCard(
                 "已关闭 · 保留系统原有的玻璃时钟限制"
             },
         )
+        BasicComponent(
+            title = "超级壁纸景深",
+            summary = if (config.superWallpaperDepthEnabled) {
+                "已开启 · 使用动态视频壁纸的景深算法"
+            } else {
+                "已关闭 · 保留超级壁纸原有行为"
+            },
+        )
     }
 }
 
