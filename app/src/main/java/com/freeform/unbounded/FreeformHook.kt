@@ -475,6 +475,12 @@ class FreeformHook : XposedModule() {
                             )
                             true
                         }
+                        "getDepthAvoidRect" -> {
+                            // MIUI can return a stale/null rectangle immediately after
+                            // rebinding from a normal wallpaper. Return the evaluator
+                            // result after repairing the controller cache.
+                            VideoDepthPolicy.safeAvoidRect(target, bounds) ?: stockResult
+                        }
                         else -> stockResult
                     }
                 }

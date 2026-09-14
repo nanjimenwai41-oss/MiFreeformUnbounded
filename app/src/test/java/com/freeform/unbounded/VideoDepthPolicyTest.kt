@@ -15,6 +15,11 @@ class VideoDepthPolicyTest {
     }
 
     @Test
+    fun detectsSuperWallpaperThroughWallpaperInfoAfterControllerRebind() {
+        assertTrue(VideoDepthPolicy.shouldUseVideoDepth(RebindingController(), true))
+    }
+
+    @Test
     fun normalizesEvaluatorDpBoundsAndKeepsRatioCompatibility() {
         assertEquals(0.375f, VideoDepthPolicy.normalizeBound(300f, 2400, 3f)!!, 0f)
         assertEquals(0.5f, VideoDepthPolicy.normalizeBound(0.5f, 2400, 3f)!!, 0f)
@@ -28,4 +33,8 @@ class VideoDepthPolicyTest {
     }
 
     private class PlainClockTarget
+
+    private class RebindingController {
+        val mWallpaperInfo = SuperWallpaperTargetFixture()
+    }
 }

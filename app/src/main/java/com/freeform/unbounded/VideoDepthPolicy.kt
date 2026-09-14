@@ -60,7 +60,13 @@ internal object VideoDepthPolicy {
         if (json != null && superTypeMarkers.any(json::contains)) return true
 
         val context = findContext(value)
-        return context?.let(::isSuperWallpaperSetting) == true
+        if (context?.let(::isSuperWallpaperSetting) == true) return true
+
+        // During wallpaper replacement the controller itself may briefly lose its
+        // type fields while its manager/info object still identifies the target.
+        // Follow the common holder fields so the depth hook remains active across
+        // the rebind window without broadening ordinary wallpaper behavior.
+        return nestedWallpaperObject(value)?.let(::isSuperWallpaperTarget) == true
     }
 
     fun shouldUseVideoDepth(target: Any?, enabled: Boolean): Boolean =
@@ -163,6 +169,16 @@ internal object VideoDepthPolicy {
 
     private fun findContext(target: Any): Context? =
         readObject(target, "mContext", "context", "getContext") as? Context
+
+    private fun nestedWallpaperObject(target: Any): Any? =
+        listOf(
+            "mWallpaperInfo", "wallpaperInfo", "getWallpaperInfo",
+            "mWallpaperManager", "wallpaperManager", "getWallpaperManager",
+            "mKeyguardWallpaperManager", "keyguardWallpaperManager",
+            "mKeyguardWallpaper", "keyguardWallpaper", "getKeyguardWallpaper",
+        ).asSequence()
+            .mapNotNull { readObject(target, it) }
+            .firstOrNull { it !== target }
 
     private fun displayHeight(target: Any, context: Context): Int {
         val viewHeight = (target as? View)?.height ?: 0
