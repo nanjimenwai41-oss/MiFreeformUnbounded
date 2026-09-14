@@ -191,6 +191,8 @@ class FreeformHook : XposedModule() {
             rule.action in AOD_GLASS_ACTIONS -> config.aodGlassEnabled
             rule.action == HookAction.ENABLE_SUPER_WALLPAPER_VIDEO_DEPTH ->
                 config.superWallpaperDepthEnabled
+            rule.action == HookAction.ENABLE_SUPER_WALLPAPER_VIDEO_RENDER ->
+                config.superWallpaperDepthEnabled
             else -> true
         }
         if (!featureEnabled) {
@@ -475,6 +477,21 @@ class FreeformHook : XposedModule() {
                         }
                         else -> stockResult
                     }
+                }
+            }
+
+            HookAction.ENABLE_SUPER_WALLPAPER_VIDEO_RENDER -> {
+                val target = chain.getThisObject()
+                val stockResult = chain.proceed()
+                if (!VideoDepthPolicy.isSuperWallpaperTarget(target)) {
+                    stockResult
+                } else {
+                    logLimited(
+                        Log.INFO,
+                        hookId,
+                        "Enabled video-depth surface path for Super wallpaper (stock=$stockResult)",
+                    )
+                    true
                 }
             }
         }

@@ -26,6 +26,8 @@ internal object VideoDepthPolicy {
         "aod_using_super_wallpaper",
     )
 
+    private val superMagicTypes = setOf(100000, 100001)
+
     data class SafeBounds(val top: Float, val bottom: Float)
 
     /** Detects the currently selected Super wallpaper from a SystemUI object. */
@@ -39,6 +41,18 @@ internal object VideoDepthPolicy {
             ?.toString()
             ?.lowercase()
         if (marker != null && superTypeMarkers.any(marker::contains)) return true
+        val wallpaperType = readObject(
+            value,
+            "getKeyguardWallpaperType",
+            "getWallpaperType",
+            "mKeyguardWallpaperType",
+            "keyguardWallpaperType",
+            "mWallpaperType",
+            "wallpaperType",
+        )?.toString()?.lowercase()
+        if (wallpaperType != null && superTypeMarkers.any(wallpaperType::contains)) return true
+        val magicType = (readObject(value, "getMagicType", "mMagicType", "magicType") as? Number)?.toInt()
+        if (magicType != null && magicType in superMagicTypes) return true
         if (readObject(value, "isSuperWallpaper", "getIsSuperWallpaper", "isSupportSuperWallpaper") == true) {
             return true
         }
@@ -72,6 +86,24 @@ internal object VideoDepthPolicy {
             applyBounds(receiver, bounds)
         }
         return bounds
+    }
+
+    /**
+     * Builds the clock avoid rectangle from the evaluator margins. The
+     * evaluator exposes both values as distances from the screen edges, so
+     * the bottom coordinate is derived from the lower inset.
+     */
+    fun safeAvoidRect(target: Any?, bounds: SafeBounds? = null): Rect? {
+        val receiver = target ?: return null
+        val context = findContext(receiver) ?: return null
+        val safeBounds = bounds ?: readCurrentSafeBounds(receiver) ?: return null
+        val height = displayHeight(receiver, context)
+        if (height <= 0) return null
+        val width = displayWidth(receiver, context)
+        val top = (safeBounds.top * height).toInt().coerceIn(0, height)
+        val bottomInset = (safeBounds.bottom * height).toInt().coerceIn(0, height)
+        val bottom = (height - bottomInset).coerceIn(top, height)
+        return Rect(0, top, width, bottom)
     }
 
     /** Exposed for deterministic unit tests and compatibility diagnostics. */
@@ -116,7 +148,8 @@ internal object VideoDepthPolicy {
         val height = displayHeight(target, findContext(target) ?: return)
         if (height <= 0) return
         val top = (bounds.top * height).toInt().coerceIn(0, height)
-        val bottom = (bounds.bottom * height).toInt().coerceIn(top, height)
+        val bottomInset = (bounds.bottom * height).toInt().coerceIn(0, height)
+        val bottom = (height - bottomInset).coerceIn(top, height)
         val candidates = listOfNotNull(
             target,
             readObject(target, "mClockView", "clockView", "getClockView"),
@@ -134,6 +167,11 @@ internal object VideoDepthPolicy {
     private fun displayHeight(target: Any, context: Context): Int {
         val viewHeight = (target as? View)?.height ?: 0
         return if (viewHeight > 0) viewHeight else context.resources.displayMetrics.heightPixels
+    }
+
+    private fun displayWidth(target: Any, context: Context): Int {
+        val viewWidth = (target as? View)?.width ?: 0
+        return if (viewWidth > 0) viewWidth else context.resources.displayMetrics.widthPixels
     }
 
     private fun isSuperWallpaperSetting(context: Context): Boolean = runCatching {

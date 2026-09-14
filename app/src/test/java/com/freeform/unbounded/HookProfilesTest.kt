@@ -248,6 +248,17 @@ class HookProfilesTest {
     }
 
     @Test
+    fun superWallpaperVideoRenderRuleMatchesKeyguardManagerEntrypoint() {
+        val rule = HookProfiles.systemUi
+            .flatMap { it.rules }
+            .first { it.action == HookAction.ENABLE_SUPER_WALLPAPER_VIDEO_RENDER }
+
+        assertTrue(rule.matches("isDepthVideoEnable", "boolean", emptyList()))
+        assertFalse(rule.matches("isDepthVideoEnable", "void", emptyList()))
+        assertFalse(rule.matches("isDepthVideoEnable", "boolean", listOf("int")))
+    }
+
+    @Test
     fun aodProfilesContainNoSuperWallpaperEditorHooks() {
         val retiredNames = setOf(
             "bindView", "setSize", "onLayout", "updateClockPositionByTime", "update",

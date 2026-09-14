@@ -23,7 +23,9 @@ class VideoDepthPolicyTest {
         assertNull(VideoDepthPolicy.normalizeBound(300f, 0, 3f))
     }
 
-    private class SuperWallpaperTargetFixture
+    private class SuperWallpaperTargetFixture {
+        val mKeyguardWallpaperType = "super_wallpaper"
+    }
 
     private class PlainClockTarget
 }

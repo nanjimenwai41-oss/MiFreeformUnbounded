@@ -17,6 +17,8 @@ internal enum class HookAction {
     PRESERVE_GLASS_SYSTEMUI,
     /** Reuses the dynamic-video depth path for a selected Super wallpaper. */
     ENABLE_SUPER_WALLPAPER_VIDEO_DEPTH,
+    /** Allows the keyguard video-depth surface path for a selected Super wallpaper. */
+    ENABLE_SUPER_WALLPAPER_VIDEO_RENDER,
 }
 
 internal data class MethodHookRule(
@@ -96,6 +98,8 @@ internal data class MethodHookRule(
                 "getDepthAvoidRect" -> returnType == Rect::class.java.name && parameterTypes.isEmpty()
                 else -> false
             }
+            HookAction.ENABLE_SUPER_WALLPAPER_VIDEO_RENDER ->
+                name == "isDepthVideoEnable" && returnType == "boolean" && parameterTypes.isEmpty()
         }
     }
 }
@@ -165,6 +169,11 @@ internal object HookProfiles {
         action = HookAction.ENABLE_SUPER_WALLPAPER_VIDEO_DEPTH,
     )
 
+    private val enableSuperWallpaperVideoRender = MethodHookRule(
+        names = setOf("isDepthVideoEnable"),
+        action = HookAction.ENABLE_SUPER_WALLPAPER_VIDEO_RENDER,
+    )
+
     val systemServer = emptyList<ClassHookProfile>()
 
     val systemUi = listOf(
@@ -190,6 +199,10 @@ internal object HookProfiles {
                 preserveGlassSystemUi,
                 enableSuperWallpaperVideoDepth,
             ),
+        ),
+        ClassHookProfile(
+            "com.android.keyguard.wallpaper.MiuiKeyguardWallPaperManager",
+            listOf(enableSuperWallpaperVideoRender),
         ),
     )
 
