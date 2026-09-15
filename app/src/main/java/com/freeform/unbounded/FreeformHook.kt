@@ -452,53 +452,28 @@ class FreeformHook : XposedModule() {
 
             HookAction.ENABLE_SUPER_WALLPAPER_VIDEO_DEPTH -> {
                 val target = chain.getThisObject()
-                val useVideoDepth = VideoDepthPolicy.shouldUseVideoDepth(target, config.superWallpaperDepthEnabled)
-                if (!useVideoDepth) {
-                    chain.proceed()
-                } else {
-                    // Update MIUI's cached fields before getDepthAvoidRect() runs;
-                    // the stock method then builds its Rect from the video safe area.
-                    if (method.name != "setWallpaperSupportDepth") {
-                        VideoDepthPolicy.applyVideoDepth(target)
-                    }
-                    val stockResult = chain.proceed()
-                    // The setter is allowed to run normally, then repaired because
-                    // MIUI may clear the flag while rebinding a Super wallpaper.
-                    val bounds = VideoDepthPolicy.applyVideoDepth(target)
-                    when (method.name) {
-                        "isWallpaperSupportDepth" -> {
-                            logLimited(
-                                Log.INFO,
-                                hookId,
-                                "Enabled dynamic-video depth algorithm for Super wallpaper" +
-                                    (bounds?.let { " (safe=${it.top}..${it.bottom})" } ?: ""),
-                            )
-                            true
-                        }
-                        "getDepthAvoidRect" -> {
-                            // MIUI can return a stale/null rectangle immediately after
-                            // rebinding from a normal wallpaper. Return the evaluator
-                            // result after repairing the controller cache.
-                            VideoDepthPolicy.safeAvoidRect(target, bounds) ?: stockResult
-                        }
-                        else -> stockResult
-                    }
+                val stockResult = chain.proceed()
+                if (VideoDepthPolicy.isSuperWallpaperTarget(target)) {
+                    logLimited(
+                        Log.INFO,
+                        hookId,
+                        "Observed stock depth result for Super wallpaper method=${method.name}: $stockResult; no override",
+                    )
                 }
+                stockResult
             }
 
             HookAction.ENABLE_SUPER_WALLPAPER_VIDEO_RENDER -> {
                 val target = chain.getThisObject()
                 val stockResult = chain.proceed()
-                if (!VideoDepthPolicy.isSuperWallpaperTarget(target)) {
-                    stockResult
-                } else {
+                if (VideoDepthPolicy.isSuperWallpaperTarget(target)) {
                     logLimited(
                         Log.INFO,
                         hookId,
-                        "Enabled video-depth surface path for Super wallpaper (stock=$stockResult)",
+                        "Observed stock video-depth surface decision for Super wallpaper (stock=$stockResult); no override",
                     )
-                    true
                 }
+                stockResult
             }
 
             HookAction.ESTABLISH_SUPER_WALLPAPER_SESSION -> {
@@ -532,6 +507,21 @@ class FreeformHook : XposedModule() {
                     )
                 }
                 chain.proceed()
+            }
+
+            HookAction.OBSERVE_VIDEO_DEPTH_CHAIN -> {
+                val target = chain.getThisObject()
+                val before = VideoDepthPolicy.sessionSnapshot(target)
+                val result = chain.proceed()
+                val after = VideoDepthPolicy.sessionSnapshot(target)
+                logLimited(
+                    Log.INFO,
+                    hookId,
+                    "CI17 observed ${method.name}${method.parameterTypes.toList()} " +
+                        "result=$result session=${after?.generation ?: before?.generation ?: 0} " +
+                        "compat=${after?.compatibilityKind ?: before?.compatibilityKind ?: WallpaperKind.UNKNOWN}",
+                )
+                result
             }
         }
     }

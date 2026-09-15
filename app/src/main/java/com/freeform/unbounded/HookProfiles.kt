@@ -23,6 +23,8 @@ internal enum class HookAction {
     ESTABLISH_SUPER_WALLPAPER_SESSION,
     /** Prepares inputs consumed by the native dynamic-video depth evaluator. */
     PREPARE_VIDEO_DEPTH_INPUT,
+    /** Observes the real SystemUI video-depth state machine without changing results. */
+    OBSERVE_VIDEO_DEPTH_CHAIN,
 }
 
 internal data class MethodHookRule(
@@ -106,6 +108,13 @@ internal data class MethodHookRule(
                 name == "isDepthVideoEnable" && returnType == "boolean" && parameterTypes.isEmpty()
             HookAction.ESTABLISH_SUPER_WALLPAPER_SESSION -> returnType == "void" || returnType == "boolean" || returnType.endsWith("WallpaperInfo")
             HookAction.PREPARE_VIDEO_DEPTH_INPUT -> returnType == "void" || returnType == "boolean"
+            HookAction.OBSERVE_VIDEO_DEPTH_CHAIN -> when (name) {
+                "initDepthBitmapAvoid" -> returnType == "void" && parameterTypes == listOf(
+                    "android.graphics.Bitmap", "android.net.Uri",
+                )
+                "updateVideoDepthVisibility" -> returnType == "void" && parameterTypes == listOf("int", "boolean", "boolean")
+                else -> returnType == "void" && parameterTypes.isEmpty()
+            }
         }
     }
 }
@@ -190,6 +199,17 @@ internal object HookProfiles {
         action = HookAction.PREPARE_VIDEO_DEPTH_INPUT,
     )
 
+    private val observeVideoDepthChain = MethodHookRule(
+        names = setOf(
+            "initDepthBitmapAvoid",
+            "removeVideoDepthSurface",
+            "updateDeductedImageView",
+            "updateVideoDepthSurface",
+            "updateVideoDepthVisibility",
+        ),
+        action = HookAction.OBSERVE_VIDEO_DEPTH_CHAIN,
+    )
+
     val systemServer = emptyList<ClassHookProfile>()
 
     val systemUi = listOf(
@@ -221,6 +241,10 @@ internal object HookProfiles {
         ClassHookProfile(
             "com.android.keyguard.wallpaper.MiuiKeyguardWallPaperManager",
             listOf(enableSuperWallpaperVideoRender, establishSuperWallpaperSession, prepareVideoDepthInput),
+        ),
+        ClassHookProfile(
+            "com.android.keyguard.depth.KeyguardDepthInteractor",
+            listOf(observeVideoDepthChain),
         ),
     )
 
