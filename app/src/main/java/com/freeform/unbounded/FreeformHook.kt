@@ -500,6 +500,39 @@ class FreeformHook : XposedModule() {
                     true
                 }
             }
+
+            HookAction.ESTABLISH_SUPER_WALLPAPER_SESSION -> {
+                val target = chain.getThisObject()
+                val before = VideoDepthPolicy.sessionSnapshot(target)
+                val result = chain.proceed()
+                val after = VideoDepthPolicy.establishSession(target, config.superWallpaperDepthEnabled)
+                if (after != null) {
+                    logLimited(
+                        Log.INFO,
+                        hookId,
+                        "Super wallpaper depth session generation=${after.generation} " +
+                            "kind=${after.originalKind}->${after.compatibilityKind} " +
+                            "previous=${before?.generation ?: 0}",
+                    )
+                } else {
+                    VideoDepthPolicy.invalidateSession(target)
+                }
+                result
+            }
+
+            HookAction.PREPARE_VIDEO_DEPTH_INPUT -> {
+                val target = chain.getThisObject()
+                val snapshot = VideoDepthPolicy.sessionSnapshot(target)
+                if (snapshot?.compatibilityKind == WallpaperKind.VIDEO) {
+                    VideoDepthPolicy.applyVideoDepth(target)
+                    logLimited(
+                        Log.DEBUG,
+                        hookId,
+                        "Prepared dynamic-video depth input generation=${snapshot.generation}",
+                    )
+                }
+                chain.proceed()
+            }
         }
     }
 

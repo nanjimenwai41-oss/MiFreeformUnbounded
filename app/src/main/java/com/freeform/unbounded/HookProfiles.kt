@@ -19,6 +19,10 @@ internal enum class HookAction {
     ENABLE_SUPER_WALLPAPER_VIDEO_DEPTH,
     /** Allows the keyguard video-depth surface path for a selected Super wallpaper. */
     ENABLE_SUPER_WALLPAPER_VIDEO_RENDER,
+    /** Establishes or invalidates the local Super-wallpaper compatibility session. */
+    ESTABLISH_SUPER_WALLPAPER_SESSION,
+    /** Prepares inputs consumed by the native dynamic-video depth evaluator. */
+    PREPARE_VIDEO_DEPTH_INPUT,
 }
 
 internal data class MethodHookRule(
@@ -100,6 +104,8 @@ internal data class MethodHookRule(
             }
             HookAction.ENABLE_SUPER_WALLPAPER_VIDEO_RENDER ->
                 name == "isDepthVideoEnable" && returnType == "boolean" && parameterTypes.isEmpty()
+            HookAction.ESTABLISH_SUPER_WALLPAPER_SESSION -> returnType == "void" || returnType == "boolean" || returnType.endsWith("WallpaperInfo")
+            HookAction.PREPARE_VIDEO_DEPTH_INPUT -> returnType == "void" || returnType == "boolean"
         }
     }
 }
@@ -174,6 +180,16 @@ internal object HookProfiles {
         action = HookAction.ENABLE_SUPER_WALLPAPER_VIDEO_RENDER,
     )
 
+    private val establishSuperWallpaperSession = MethodHookRule(
+        names = setOf("setWallpaperInfo", "updateWallpaperInfo", "onWallpaperChanged", "onWallpaperChangedComplete", "bindWallpaper", "rebindWallpaper", "setKeyguardWallpaper", "onClockViewCreated", "onConfigurationChanged", "onDisplayChanged", "onSurfaceCreated", "onSurfaceDestroyed"),
+        action = HookAction.ESTABLISH_SUPER_WALLPAPER_SESSION,
+    )
+
+    private val prepareVideoDepthInput = MethodHookRule(
+        names = setOf("initWallpaperDepth", "initializeWallpaperDepth", "prepareDepthAvoidRule", "prepareVideoDepth", "setDepthVideoConfig", "updateDepthAvoidRule"),
+        action = HookAction.PREPARE_VIDEO_DEPTH_INPUT,
+    )
+
     val systemServer = emptyList<ClassHookProfile>()
 
     val systemUi = listOf(
@@ -198,11 +214,13 @@ internal object HookProfiles {
             listOf(
                 preserveGlassSystemUi,
                 enableSuperWallpaperVideoDepth,
+                establishSuperWallpaperSession,
+                prepareVideoDepthInput,
             ),
         ),
         ClassHookProfile(
             "com.android.keyguard.wallpaper.MiuiKeyguardWallPaperManager",
-            listOf(enableSuperWallpaperVideoRender),
+            listOf(enableSuperWallpaperVideoRender, establishSuperWallpaperSession, prepareVideoDepthInput),
         ),
     )
 

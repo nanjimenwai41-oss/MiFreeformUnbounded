@@ -5,6 +5,8 @@ import android.graphics.Point
 import android.graphics.Rect
 import android.view.View
 import java.lang.reflect.Modifier
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /**
  * Adapter for the depth implementation already shipped with the clock library.
@@ -29,6 +31,27 @@ internal object VideoDepthPolicy {
     private val superMagicTypes = setOf(100000, 100001)
 
     data class SafeBounds(val top: Float, val bottom: Float)
+
+    private val sessions = Collections.synchronizedMap(IdentityHashMap<Any, VideoWallpaperCompatibilitySession>())
+
+    fun sessionFor(target: Any, enabled: Boolean): VideoWallpaperCompatibilitySession? {
+        if (!enabled || !isSuperWallpaperTarget(target)) return null
+        return sessions.getOrPut(target) {
+            VideoWallpaperCompatibilitySession().also { it.establish(WallpaperKind.SUPER, true, readInput(target)) }
+        }
+    }
+
+    fun establishSession(target: Any?, enabled: Boolean): VideoDepthSessionSnapshot? {
+        val receiver = target ?: return null
+        if (!enabled || !isSuperWallpaperTarget(receiver)) return null
+        val session = sessions[receiver] ?: VideoWallpaperCompatibilitySession().also { sessions[receiver] = it }
+        session.establish(WallpaperKind.SUPER, true, readInput(receiver))
+        return session.snapshot()
+    }
+
+    fun invalidateSession(target: Any?) { target?.let { sessions.remove(it)?.invalidate() } }
+
+    fun sessionSnapshot(target: Any?): VideoDepthSessionSnapshot? = target?.let { sessions[it]?.snapshot() }
 
     /** Detects the currently selected Super wallpaper from a SystemUI object. */
     fun isSuperWallpaperTarget(target: Any?): Boolean {
@@ -78,6 +101,7 @@ internal object VideoDepthPolicy {
      */
     fun applyVideoDepth(target: Any?): SafeBounds? {
         val receiver = target ?: return null
+        val session = sessionFor(receiver, true)
         writeMember(receiver, 1, "mSetWallpaperSupportDepth")
         writeMember(receiver, true, "wallpaperSupportDepth", "mWallpaperSupportDepth")
 
@@ -90,6 +114,7 @@ internal object VideoDepthPolicy {
         val bounds = readCurrentSafeBounds(receiver)
         if (bounds != null) {
             applyBounds(receiver, bounds)
+            session?.markInitialized(bounds)
         }
         return bounds
     }
@@ -109,7 +134,17 @@ internal object VideoDepthPolicy {
         val top = (safeBounds.top * height).toInt().coerceIn(0, height)
         val bottomInset = (safeBounds.bottom * height).toInt().coerceIn(0, height)
         val bottom = (height - bottomInset).coerceIn(top, height)
-        return Rect(0, top, width, bottom)
+        return Rect(0, top, width, bottom).also { sessions[receiver]?.setAvoidRect(it) }
+    }
+
+    private fun readInput(target: Any): VideoDepthInput? {
+        val context = findContext(target) ?: return null
+        val metrics = context.resources.displayMetrics
+        val width = displayWidth(target, context)
+        val height = displayHeight(target, context)
+        if (width <= 0 || height <= 0 || !metrics.density.isFinite() || metrics.density <= 0f) return null
+        val rotation = (readObject(target, "getDisplayRotation", "displayRotation", "mRotation") as? Number)?.toInt() ?: 0
+        return VideoDepthInput(width, height, metrics.density, rotation, readCurrentSafeBounds(target) != null)
     }
 
     /** Exposed for deterministic unit tests and compatibility diagnostics. */
