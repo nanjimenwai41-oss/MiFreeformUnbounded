@@ -25,6 +25,8 @@ internal enum class HookAction {
     PREPARE_VIDEO_DEPTH_INPUT,
     /** Observes the real SystemUI video-depth state machine without changing results. */
     OBSERVE_VIDEO_DEPTH_CHAIN,
+    /** Observes depth-frame production in MiWallpaper/FastPlayer. */
+    OBSERVE_VIDEO_DEPTH_SOURCE,
 }
 
 internal data class MethodHookRule(
@@ -115,6 +117,8 @@ internal data class MethodHookRule(
                 "updateVideoDepthVisibility" -> returnType == "void" && parameterTypes == listOf("int", "boolean", "boolean")
                 else -> returnType == "void" && parameterTypes.isEmpty()
             }
+            HookAction.OBSERVE_VIDEO_DEPTH_SOURCE -> name == "getLastDepthFrame" &&
+                returnType == "android.graphics.Bitmap" && parameterTypes == listOf("java.lang.String")
         }
     }
 }
@@ -210,6 +214,11 @@ internal object HookProfiles {
         action = HookAction.OBSERVE_VIDEO_DEPTH_CHAIN,
     )
 
+    private val observeVideoDepthSource = MethodHookRule(
+        names = setOf("getLastDepthFrame"),
+        action = HookAction.OBSERVE_VIDEO_DEPTH_SOURCE,
+    )
+
     val systemServer = emptyList<ClassHookProfile>()
 
     val systemUi = listOf(
@@ -245,6 +254,33 @@ internal object HookProfiles {
         ClassHookProfile(
             "com.android.keyguard.depth.KeyguardDepthInteractor",
             listOf(observeVideoDepthChain),
+        ),
+        ClassHookProfile(
+            "com.miui.keyguard.VideoDepthSurfaceHolder",
+            listOf(observeVideoDepthChain),
+        ),
+    )
+
+    val miWallpaper = listOf(
+        ClassHookProfile(
+            "com.miui.fastplayer.FastPlayer",
+            listOf(observeVideoDepthSource),
+        ),
+        ClassHookProfile(
+            "com.miui.miwallpaper.container.videodepth.VideoDepthManager",
+            listOf(observeVideoDepthSource),
+        ),
+        ClassHookProfile(
+            "com.miui.miwallpaper.container.videodepth.VideoDepthEngineImpl",
+            listOf(observeVideoDepthSource),
+        ),
+        ClassHookProfile(
+            "com.miui.miwallpaper.wallpaperservice.impl.VideoDepthEngineImpl",
+            listOf(observeVideoDepthSource),
+        ),
+        ClassHookProfile(
+            "com.miui.miwallpaper.wallpaperservice.impl.keyguard.KeyguardVideoDepthEngineImpl",
+            listOf(observeVideoDepthSource),
         ),
     )
 

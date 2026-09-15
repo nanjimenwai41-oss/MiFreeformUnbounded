@@ -89,7 +89,7 @@ internal object ModuleStatusRepository {
             frameworkVersion = frameworkVersion,
             targets = targets.map { "${it.processName} · ${it.state}" },
             message = when {
-                !scopeEnabled -> "缺少 SystemUI 或 AOD 作用域"
+                !scopeEnabled -> "缺少 SystemUI、AOD 或 MiWallpaper 作用域"
                 pendingRestart -> "模块已安装，重启系统或相关目标进程后生效"
                 active -> "模块已由 $frameworkName 加载并运行"
                 else -> "等待目标进程加载模块"
@@ -97,6 +97,6 @@ internal object ModuleStatusRepository {
         )
     }
 
-    private val REQUIRED_SCOPE = setOf("com.android.systemui", "com.miui.aod")
-    private val REQUIRED_TARGETS = setOf("com.android.systemui", "com.miui.aod")
+    private val REQUIRED_SCOPE = setOf("com.android.systemui", "com.miui.aod", "com.miui.miwallpaper")
+    private val REQUIRED_TARGETS = setOf("com.android.systemui", "com.miui.aod", "com.miui.miwallpaper")
 }

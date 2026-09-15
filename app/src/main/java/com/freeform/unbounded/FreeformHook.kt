@@ -48,6 +48,11 @@ class FreeformHook : XposedModule() {
                 param.classLoader,
                 "$PACKAGE_AOD@${currentProcessName.get().orEmpty()}",
             )
+            PACKAGE_MI_WALLPAPER -> installProfiles(
+                HookProfiles.miWallpaper,
+                param.classLoader,
+                "$PACKAGE_MI_WALLPAPER@${currentProcessName.get().orEmpty()}",
+            )
         }
     }
 
@@ -523,6 +528,17 @@ class FreeformHook : XposedModule() {
                 )
                 result
             }
+
+            HookAction.OBSERVE_VIDEO_DEPTH_SOURCE -> {
+                val result = chain.proceed()
+                logLimited(
+                    Log.INFO,
+                    hookId,
+                    "CI17 depth source ${method.name}${method.parameterTypes.toList()} " +
+                        "result=${result?.javaClass?.name ?: "null"} identity=${result?.let(System::identityHashCode)}",
+                )
+                result
+            }
         }
     }
 
@@ -816,6 +832,7 @@ class FreeformHook : XposedModule() {
         private const val TAG = "FreeformUnbounded"
         private const val PACKAGE_SYSTEM_UI = "com.android.systemui"
         private const val PACKAGE_AOD = "com.miui.aod"
+        private const val PACKAGE_MI_WALLPAPER = "com.miui.miwallpaper"
         private const val MAX_LOGS_PER_KEY = 3
         private const val MAX_DIAGNOSTIC_METHODS = 30
         private const val ACTION_MODE_UP = 1
