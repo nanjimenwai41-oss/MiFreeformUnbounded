@@ -76,7 +76,8 @@ internal object ModuleStatusRepository {
         val currentTargets = targets.filter { target ->
             target.processName in REQUIRED_TARGETS ||
                 target.processName.contains("systemui", ignoreCase = true) ||
-                target.processName.contains("miui.aod", ignoreCase = true)
+                target.processName.contains("miui.aod", ignoreCase = true) ||
+                target.processName.contains("miwallpaper", ignoreCase = true)
         }
         val active = scopeEnabled && currentTargets.any { it.state == HookedTarget.State.UP_TO_DATE }
         val pendingRestart = scopeEnabled && !active
