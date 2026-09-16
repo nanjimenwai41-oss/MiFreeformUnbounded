@@ -155,6 +155,28 @@ class HookProfilesTest {
     }
 
     @Test
+    fun fastPlayerDepthFrameRulesMatchBothRealProducerMethods() {
+        val rule = HookProfiles.miWallpaper
+            .flatMap { it.rules }
+            .first { it.action == HookAction.OBSERVE_VIDEO_DEPTH_SOURCE }
+
+        assertTrue(rule.matches("getLastDepthFrame", "android.graphics.Bitmap", listOf("java.lang.String")))
+        assertTrue(rule.matches("getDepthFrameAtTime", "android.graphics.Bitmap", listOf("java.lang.String", "long")))
+        assertFalse(rule.matches("getDepthFrameAtTime", "android.graphics.Bitmap", listOf("java.lang.String", "int")))
+    }
+
+    @Test
+    fun depthCallbackRulesMatchSuccessAndFailureAidlMethods() {
+        val rule = HookProfiles.miWallpaper
+            .flatMap { it.rules }
+            .first { it.action == HookAction.OBSERVE_VIDEO_DEPTH_CALLBACK }
+
+        assertTrue(rule.matches("onGetLastDepthFrameSuccess", "void", listOf("android.graphics.Bitmap", "int")))
+        assertTrue(rule.matches("onGetLastDepthFrameFailed", "void", listOf("int", "java.lang.String")))
+        assertFalse(rule.matches("onGetLastDepthFrameSuccess", "void", listOf("android.graphics.Bitmap")))
+    }
+
+    @Test
     fun configuredProfilesDoNotDisableSystemPinEntry() {
         val pinEntryNames = setOf("isEnterPin", "shouldEnterPin", "canEnterPin")
         val configuredRules = (HookProfiles.systemServer + HookProfiles.systemUi).flatMap { it.rules }

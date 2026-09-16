@@ -27,6 +27,8 @@ internal enum class HookAction {
     OBSERVE_VIDEO_DEPTH_CHAIN,
     /** Observes depth-frame production in MiWallpaper/FastPlayer. */
     OBSERVE_VIDEO_DEPTH_SOURCE,
+    /** Observes the Binder callback that delivers the last depth frame to consumers. */
+    OBSERVE_VIDEO_DEPTH_CALLBACK,
 }
 
 internal data class MethodHookRule(
@@ -117,8 +119,19 @@ internal data class MethodHookRule(
                 "updateVideoDepthVisibility" -> returnType == "void" && parameterTypes == listOf("int", "boolean", "boolean")
                 else -> returnType == "void" && parameterTypes.isEmpty()
             }
-            HookAction.OBSERVE_VIDEO_DEPTH_SOURCE -> name == "getLastDepthFrame" &&
-                returnType == "android.graphics.Bitmap" && parameterTypes == listOf("java.lang.String")
+            HookAction.OBSERVE_VIDEO_DEPTH_SOURCE -> name in setOf("getLastDepthFrame", "getDepthFrameAtTime") &&
+                returnType == "android.graphics.Bitmap" && when (name) {
+                    "getLastDepthFrame" -> parameterTypes == listOf("java.lang.String")
+                    "getDepthFrameAtTime" -> parameterTypes == listOf("java.lang.String", "long")
+                    else -> false
+                }
+            HookAction.OBSERVE_VIDEO_DEPTH_CALLBACK -> when (name) {
+                "onGetLastDepthFrameSuccess" -> returnType == "void" &&
+                    parameterTypes == listOf("android.graphics.Bitmap", "int")
+                "onGetLastDepthFrameFailed" -> returnType == "void" &&
+                    parameterTypes == listOf("int", "java.lang.String")
+                else -> false
+            }
         }
     }
 }
@@ -215,8 +228,13 @@ internal object HookProfiles {
     )
 
     private val observeVideoDepthSource = MethodHookRule(
-        names = setOf("getLastDepthFrame"),
+        names = setOf("getLastDepthFrame", "getDepthFrameAtTime"),
         action = HookAction.OBSERVE_VIDEO_DEPTH_SOURCE,
+    )
+
+    private val observeVideoDepthCallback = MethodHookRule(
+        names = setOf("onGetLastDepthFrameSuccess", "onGetLastDepthFrameFailed"),
+        action = HookAction.OBSERVE_VIDEO_DEPTH_CALLBACK,
     )
 
     val systemServer = emptyList<ClassHookProfile>()
@@ -281,6 +299,14 @@ internal object HookProfiles {
         ClassHookProfile(
             "com.miui.miwallpaper.wallpaperservice.impl.keyguard.KeyguardVideoDepthEngineImpl",
             listOf(observeVideoDepthSource),
+        ),
+        ClassHookProfile(
+            "com.miui.miwallpaper.IMiuiVideoDepthLastFrameCallback",
+            listOf(observeVideoDepthCallback),
+        ),
+        ClassHookProfile(
+            "com.miui.miwallpaper.IMiuiVideoDepthLastFrameCallback\$Stub",
+            listOf(observeVideoDepthCallback),
         ),
     )
 

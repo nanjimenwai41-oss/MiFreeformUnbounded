@@ -539,6 +539,28 @@ class FreeformHook : XposedModule() {
                 )
                 result
             }
+
+            HookAction.OBSERVE_VIDEO_DEPTH_CALLBACK -> {
+                val result = chain.proceed()
+                logLimited(
+                    Log.INFO,
+                    hookId,
+                    "CI17 depth callback ${method.name}${method.parameterTypes.toList()} " +
+                        "args=${describeDepthCallbackArgs(chain.getArgs())} result=$result",
+                )
+                result
+            }
+        }
+    }
+
+    private fun describeDepthCallbackArgs(args: List<Any?>): String = args.joinToString(
+        prefix = "[",
+        postfix = "]",
+    ) { arg ->
+        when (arg) {
+            null -> "null"
+            is android.graphics.Bitmap -> "Bitmap(${arg.width}x${arg.height},${arg.config})"
+            else -> arg.toString().take(160)
         }
     }
 
