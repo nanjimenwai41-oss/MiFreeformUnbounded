@@ -31,7 +31,7 @@ A freeform-window boundary and lock-screen glass-clock module for HyperOS 3/4. I
 | System | HyperOS 3/4 (HyperOS 4 target) |
 | Minimum Android | Android 12 (API 31) |
 | Hook framework | A manager supporting Modern LibXposed API 102 |
-| Static scope | `com.android.systemui`, `com.miui.aod` |
+| Static scope | `com.android.systemui`, `com.miui.aod`, `com.miui.miwallpaper` |
 | Build toolchain | JDK 21, Android SDK 37, Gradle Wrapper |
 
 HyperOS minor releases may rename classes or change method signatures. The module intentionally performs strict matching and skips incompatible rules instead of forcing an unsafe hook.
@@ -40,7 +40,7 @@ HyperOS minor releases may rename classes or change method signatures. The modul
 
 1. Download the APK from the [v3.0.0 stable release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0).
 2. Install it with a module manager that supports Modern LibXposed API 102.
-3. Enable the static scopes `com.android.systemui` and `com.miui.aod`.
+3. Enable the static scopes `com.android.systemui`, `com.miui.aod`, and `com.miui.miwallpaper`. The module uses a fixed static scope; there is no separate recommended-app list to configure.
 4. Reboot the device, or use the Home actions to restart System UI or the lock-screen editor as needed.
 5. Open the app and verify that the status card reports Working or Pending restart.
 
@@ -101,7 +101,7 @@ app/src/main/java/com/freeform/unbounded/
 
 ## Troubleshooting
 
-- **The home page says inactive**: verify both static scopes and reboot the device or the corresponding target process.
+- **The home page says inactive**: verify all three static scopes and reboot the device or the corresponding target process.
 - **The page says pending restart**: the module is installed, but the target process has not reloaded yet.
 - **Dragging is unchanged**: check whether the current HyperOS build still exposes a known method signature and inspect Xposed logs.
 - **The slider is disabled**: this is expected while the module is inactive; it is restored after activation or pending restart.

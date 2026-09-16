@@ -32,7 +32,7 @@
 | 系统 | HyperOS 3/4（目标环境为 HyperOS 4） |
 | 最低 Android | Android 12（API 31） |
 | Hook 框架 | 支持 Modern LibXposed API 102 的管理器 |
-| 静态作用域 | `com.android.systemui`、`com.miui.aod` |
+| 静态作用域 | `com.android.systemui`、`com.miui.aod`、`com.miui.miwallpaper` |
 | 构建工具 | JDK 21、Android SDK 37、Gradle Wrapper |
 
 不同 HyperOS 小版本可能调整类名或方法签名。模块会在运行时进行严格匹配，未匹配的规则不会强行注入。
@@ -41,7 +41,7 @@
 
 1. 从 [v3.0.0 Release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0) 下载正式版 APK。
 2. 使用支持 Modern LibXposed API 102 的模块管理器安装 APK。
-3. 为模块启用静态作用域：`com.android.systemui` 和 `com.miui.aod`。
+3. 为模块启用静态作用域：`com.android.systemui`、`com.miui.aod` 和 `com.miui.miwallpaper`。本模块使用固定静态作用域，不存在需要单独配置的“推荐应用”列表。
 4. 重启设备，或在首页按需重启系统界面 / 息屏与锁屏编辑。
 5. 打开应用首页，确认状态卡显示“工作中”或“待重启”。
 
@@ -102,7 +102,7 @@ app/src/main/java/com/freeform/unbounded/
 
 ## 故障排查
 
-- **首页显示未激活**：确认两个静态作用域均已启用，并重启设备或对应目标进程。
+- **首页显示未激活**：确认三个静态作用域均已启用，并重启设备或对应目标进程。
 - **显示待重启**：模块已安装但目标进程尚未重新加载，按提示重启系统界面或息屏与锁屏编辑。
 - **拖动效果没有变化**：检查当前 HyperOS 构建是否仍使用已知方法签名，并查看 Xposed 日志中的匹配结果。
 - **设置滑条不可用**：模块未激活时这是预期行为；激活或待重启后会自动恢复。
