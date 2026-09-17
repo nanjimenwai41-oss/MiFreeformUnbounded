@@ -1,5 +1,6 @@
 package com.freeform.unbounded.ui
 
+import android.content.Intent
 import android.os.Build
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -44,6 +45,7 @@ import com.freeform.unbounded.BuildConfig
 import com.freeform.unbounded.ConfigRepository
 import com.freeform.unbounded.ModuleStatus
 import com.freeform.unbounded.ModuleStatusRepository
+import com.freeform.unbounded.PhoneDiagnosticsExporter
 import com.freeform.unbounded.SystemUiRestarter
 import com.freeform.unbounded.ui.theme.HyperGreenContainerDark
 import com.freeform.unbounded.ui.theme.HyperGreenContainerLight
@@ -75,6 +77,8 @@ internal fun HomeScreen(
     val config by ConfigRepository.config.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var diagnosticsStatus by remember { mutableStateOf<String?>(null) }
+    var exportingDiagnostics by remember { mutableStateOf(false) }
     val blurBackdrop = rememberBlurBackdrop(enableBlur)
     val barColor = if (blurBackdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface
     val navigationBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -121,6 +125,26 @@ internal fun HomeScreen(
                         },
                         onRestartAod = {
                             scope.launch { SystemUiRestarter.restartAod(context) }
+                        },
+                        diagnosticsStatus = diagnosticsStatus,
+                        exportingDiagnostics = exportingDiagnostics,
+                        onExportDiagnostics = {
+                            exportingDiagnostics = true
+                            diagnosticsStatus = "正在读取系统景深日志"
+                            scope.launch {
+                                PhoneDiagnosticsExporter.export(context).onSuccess { file ->
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_STREAM, PhoneDiagnosticsExporter.shareUri(context, file))
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(Intent.createChooser(intent, "导出景深诊断日志"))
+                                    diagnosticsStatus = "日志已生成，可在分享面板保存或发送"
+                                }.onFailure { error ->
+                                    diagnosticsStatus = "导出失败：${error.message ?: error.javaClass.simpleName}"
+                                }
+                                exportingDiagnostics = false
+                            }
                         },
                     )
                 }
@@ -356,8 +380,23 @@ private fun RuntimeCard(
     config: com.freeform.unbounded.AppConfig,
     onRestartSystemUi: () -> Unit,
     onRestartAod: () -> Unit,
+    diagnosticsStatus: String?,
+    exportingDiagnostics: Boolean,
+    onExportDiagnostics: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
+        BasicComponent(
+            title = "导出景深诊断日志",
+            summary = diagnosticsStatus ?: "一键读取 LSPosed、SystemUI 与 MiWallpaper 日志\n需要 ROOT 权限",
+            endActions = {
+                TextButton(
+                    text = if (exportingDiagnostics) "读取中" else "导出",
+                    onClick = onExportDiagnostics,
+                    enabled = !exportingDiagnostics,
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
+            },
+        )
         BasicComponent(
             title = "重启系统界面",
             summary = "刷新自由小窗功能\n需要 ROOT 权限",
