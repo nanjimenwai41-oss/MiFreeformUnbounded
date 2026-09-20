@@ -177,6 +177,17 @@ class HookProfilesTest {
     }
 
     @Test
+    fun superWallpaperEngineRuleOnlyMatchesDepthOrTextureDataMethods() {
+        val rule = HookProfiles.miWallpaper
+            .flatMap { it.rules }
+            .first { it.action == HookAction.OBSERVE_SUPER_WALLPAPER_ENGINE }
+
+        assertTrue(rule.matches("updateDepthTexture", "void", listOf("java.nio.ByteBuffer")))
+        assertTrue(rule.matches("getDepthBitmap", "android.graphics.Bitmap", emptyList()))
+        assertFalse(rule.matches("onOffsetsChanged", "void", listOf("float", "float", "float", "float", "int", "int")))
+    }
+
+    @Test
     fun configuredProfilesDoNotDisableSystemPinEntry() {
         val pinEntryNames = setOf("isEnterPin", "shouldEnterPin", "canEnterPin")
         val configuredRules = (HookProfiles.systemServer + HookProfiles.systemUi).flatMap { it.rules }

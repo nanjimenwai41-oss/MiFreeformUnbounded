@@ -550,6 +550,18 @@ class FreeformHook : XposedModule() {
                 )
                 result
             }
+
+            HookAction.OBSERVE_SUPER_WALLPAPER_ENGINE -> {
+                val args = chain.getArgs()
+                val result = chain.proceed()
+                logLimited(
+                    Log.INFO,
+                    hookId,
+                    "CI17 super engine ${profile.className}#${method.name}${method.parameterTypes.toList()} " +
+                        "args=${describeDepthCallbackArgs(args)} result=${describeDepthValue(result)}",
+                )
+                result
+            }
         }
     }
 
@@ -562,6 +574,13 @@ class FreeformHook : XposedModule() {
             is android.graphics.Bitmap -> "Bitmap(${arg.width}x${arg.height},${arg.config})"
             else -> arg.toString().take(160)
         }
+    }
+
+    private fun describeDepthValue(value: Any?): String = when (value) {
+        null -> "null"
+        is android.graphics.Bitmap -> "Bitmap(${value.width}x${value.height},${value.config})"
+        is java.nio.ByteBuffer -> "ByteBuffer(remaining=${value.remaining()})"
+        else -> "${value.javaClass.name}@${System.identityHashCode(value)}"
     }
 
     private fun restoreSystemUiGlassBean(

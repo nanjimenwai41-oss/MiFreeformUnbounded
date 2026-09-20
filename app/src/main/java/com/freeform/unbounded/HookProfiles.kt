@@ -29,6 +29,8 @@ internal enum class HookAction {
     OBSERVE_VIDEO_DEPTH_SOURCE,
     /** Observes the Binder callback that delivers the last depth frame to consumers. */
     OBSERVE_VIDEO_DEPTH_CALLBACK,
+    /** Observes concrete Super-wallpaper Engine/Renderer depth inputs. */
+    OBSERVE_SUPER_WALLPAPER_ENGINE,
 }
 
 internal data class MethodHookRule(
@@ -131,6 +133,22 @@ internal data class MethodHookRule(
                 "onGetLastDepthFrameFailed" -> returnType == "void" &&
                     parameterTypes == listOf("int", "java.lang.String")
                 else -> false
+            }
+            HookAction.OBSERVE_SUPER_WALLPAPER_ENGINE -> {
+                val depthName = name.contains("depth", ignoreCase = true) ||
+                    name.contains("texture", ignoreCase = true) ||
+                    name.contains("filament", ignoreCase = true)
+                depthName && (returnType == "void" ||
+                    returnType == "android.graphics.Bitmap" ||
+                    returnType == "java.nio.ByteBuffer" ||
+                    returnType == "android.view.Surface" ||
+                    returnType == "android.graphics.SurfaceTexture" ||
+                    parameterTypes.any { type ->
+                        type == "android.graphics.Bitmap" ||
+                            type == "java.nio.ByteBuffer" ||
+                            type == "android.view.Surface" ||
+                            type == "android.graphics.SurfaceTexture"
+                    })
             }
         }
     }
@@ -237,6 +255,15 @@ internal object HookProfiles {
         action = HookAction.OBSERVE_VIDEO_DEPTH_CALLBACK,
     )
 
+    private val observeSuperWallpaperEngine = MethodHookRule(
+        names = setOf(
+            "getDepthBitmap", "getDepthFrame", "getDepthTexture", "setDepthTexture",
+            "updateDepth", "updateDepthTexture", "loadDepth", "loadDepthTexture",
+            "renderDepth", "uploadDepth", "sendFilamentMessage",
+        ),
+        action = HookAction.OBSERVE_SUPER_WALLPAPER_ENGINE,
+    )
+
     val systemServer = emptyList<ClassHookProfile>()
 
     val systemUi = listOf(
@@ -307,6 +334,30 @@ internal object HookProfiles {
         ClassHookProfile(
             "com.miui.miwallpaper.IMiuiVideoDepthLastFrameCallback\$Stub",
             listOf(observeVideoDepthCallback),
+        ),
+        ClassHookProfile(
+            "com.miui.miwallpaper.moon.superwallpaper.MoonSuperWallpaper",
+            listOf(observeSuperWallpaperEngine),
+        ),
+        ClassHookProfile(
+            "com.miui.miwallpaper.snowmountain.superwallpaper.SnowmountainSuperWallpaper",
+            listOf(observeSuperWallpaperEngine),
+        ),
+        ClassHookProfile(
+            "com.miui.miwallpaper.geometry.superwallpaper.GeometrySuperWallpaper",
+            listOf(observeSuperWallpaperEngine),
+        ),
+        ClassHookProfile(
+            "com.miui.miwallpaper.saturn.superwallpaper.SaturnSuperWallpaper",
+            listOf(observeSuperWallpaperEngine),
+        ),
+        ClassHookProfile(
+            "com.miui.miwallpaper.earth.superwallpaper.EarthSuperWallpaper",
+            listOf(observeSuperWallpaperEngine),
+        ),
+        ClassHookProfile(
+            "com.miui.miwallpaper.mars.superwallpaper.MarsSuperWallpaper",
+            listOf(observeSuperWallpaperEngine),
         ),
     )
 
