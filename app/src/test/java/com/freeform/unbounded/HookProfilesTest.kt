@@ -166,6 +166,41 @@ class HookProfilesTest {
     }
 
     @Test
+    fun videoDepthRenderPathRulesMatchOnlyVerifiedCurrentDeviceSignatures() {
+        val rule = HookProfiles.miWallpaper
+            .flatMap { it.rules }
+            .first { it.action == HookAction.OBSERVE_VIDEO_DEPTH_RENDER_PATH }
+
+        assertTrue(rule.matches("i", "void", listOf("android.view.Surface", "android.view.Surface")))
+        assertTrue(rule.matches("setSurface", "void", listOf(
+            "android.view.Surface", "android.view.Surface", "android.view.Surface",
+            "int", "android.graphics.Bitmap",
+        )))
+        assertTrue(rule.matches("addDataSource", "void", listOf(
+            "android.content.Context", "android.net.Uri", "int",
+        )))
+        assertTrue(rule.matches("changeOpenGLSurface", "int", listOf(
+            "android.view.Surface", "boolean", "android.view.Surface", "boolean",
+            "android.view.Surface", "boolean",
+        )))
+        assertFalse(rule.matches("i", "void", listOf("android.view.Surface")))
+        assertFalse(rule.matches("setSurface", "void", listOf("android.view.Surface")))
+        assertFalse(rule.matches("getLastDepthFrame", "android.graphics.Bitmap", listOf("java.lang.String")))
+    }
+
+    @Test
+    fun panelForegroundRecoveryHooksVerifiedPostVisibilityMethod() {
+        val rule = HookProfiles.systemUi
+            .first { it.className == "com.android.keyguard.panel.KeyguardPanelViewController" }
+            .rules
+            .first { it.action == HookAction.OBSERVE_VIDEO_DEPTH_CHAIN }
+
+        assertTrue(rule.matches("updateKeyguardElementsVisibility", "void", emptyList()))
+        assertFalse(rule.matches("updateKeyguardElementsVisibility", "boolean", emptyList()))
+        assertFalse(rule.matches("updateKeyguardElementsVisibility", "void", listOf("boolean")))
+    }
+
+    @Test
     fun depthCallbackRulesMatchSuccessAndFailureAidlMethods() {
         val rule = HookProfiles.miWallpaper
             .flatMap { it.rules }
@@ -185,6 +220,52 @@ class HookProfilesTest {
         assertTrue(rule.matches("updateDepthTexture", "void", listOf("java.nio.ByteBuffer")))
         assertTrue(rule.matches("getDepthBitmap", "android.graphics.Bitmap", emptyList()))
         assertFalse(rule.matches("onOffsetsChanged", "void", listOf("float", "float", "float", "float", "int", "int")))
+    }
+
+    @Test
+    fun superWallpaperEngineRuleAlsoMatchesRenderFrameCallbacks() {
+        val rule = HookProfiles.miWallpaper
+            .flatMap { it.rules }
+            .first { it.action == HookAction.OBSERVE_SUPER_WALLPAPER_ENGINE }
+
+        assertTrue(rule.matches("onDrawFrame", "void", emptyList()))
+        assertTrue(rule.matches("sendFilamentMessage", "void", listOf("java.lang.String")))
+    }
+
+    @Test
+    fun snowmountainRuntimeRuleMatchesCurrentDeviceRendererSignatures() {
+        val rule = HookProfiles.miWallpaper
+            .flatMap { it.rules }
+            .first { it.action == HookAction.OBSERVE_SUPER_WALLPAPER_RUNTIME }
+
+        assertTrue(rule.matches("d", "void", emptyList()))
+        assertTrue(rule.matches("b", "void", listOf("java.lang.String")))
+        assertTrue(rule.matches("doFrame", "void", listOf("long")))
+        assertTrue(rule.matches("nInit", "void", listOf(
+            "int", "int", "java.lang.String", "java.lang.String", "java.lang.String",
+            "android.content.res.AssetManager",
+        )))
+        assertTrue(rule.matches("nSetSurface", "void", listOf("android.view.Surface")))
+        assertTrue(rule.matches("nRender", "void", listOf("long")))
+        assertTrue(rule.matches("nDestroy", "void", emptyList()))
+        assertFalse(rule.matches("nRender", "int", listOf("long")))
+        assertFalse(rule.matches("onOffsetsChanged", "void", emptyList()))
+    }
+
+    @Test
+    fun callbackRegistrationRuleMatchesTheRealAidlCallbackParameter() {
+        val rule = HookProfiles.miWallpaper
+            .flatMap { it.rules }
+            .first { it.action == HookAction.CAPTURE_VIDEO_DEPTH_CALLBACK }
+
+        assertTrue(
+            rule.matches(
+                "registerLastFrameCallback",
+                "void",
+                listOf("com.miui.miwallpaper.IMiuiVideoDepthLastFrameCallback"),
+            )
+        )
+        assertFalse(rule.matches("registerLastFrameCallback", "void", listOf("android.os.IBinder")))
     }
 
     @Test
@@ -210,6 +291,13 @@ class HookProfilesTest {
                 listOf("int", "com.miui.keyguard.editor.data.bean.CommonConfig"),
             )
         )
+        assertTrue(
+            rule.matches(
+                "shouldDisableGlassEffect",
+                "boolean",
+                listOf("int", "com.miui.keyguard.editor.data.bean.CommonConfig"),
+            )
+        )
         assertFalse(rule.matches("glassEffectDisable", "boolean", listOf("int")))
     }
 
@@ -221,6 +309,13 @@ class HookProfilesTest {
                 "computeSupportedClockEffect",
                 "int",
                 listOf("com.miui.keyguard.editor.data.bean.CommonConfig", "int"),
+            )
+        })
+        assertTrue(rules.any {
+            it.action == HookAction.PRESERVE_GLASS_EFFECT && it.matches(
+                "computeSupportedClockEffect",
+                "int",
+                listOf("com.miui.keyguard.editor.data.bean.CommonConfig", "int", "android.content.Context"),
             )
         })
         assertTrue(rules.any {
@@ -289,6 +384,48 @@ class HookProfilesTest {
         assertTrue(rule.matches("isDepthVideoEnable", "boolean", emptyList()))
         assertFalse(rule.matches("isDepthVideoEnable", "void", emptyList()))
         assertFalse(rule.matches("isDepthVideoEnable", "boolean", listOf("int")))
+    }
+
+    @Test
+    fun aodTransitionRuleMatchesOnlyTheVerifiedOs4StaticSignature() {
+        val rule = HookProfiles.systemUi
+            .first { it.className == "com.android.keyguard.panel.KeyguardPanelViewController" }
+            .rules.first { it.action == HookAction.OBSERVE_AOD_CLOCK_TRANSITION }
+        val parameters = listOf(
+            "com.android.keyguard.panel.KeyguardPanelViewController", "boolean", "java.lang.String", "int",
+        )
+        assertTrue(rule.matches("linkageViewAnim\$default", "void", parameters))
+        assertFalse(rule.matches("linkageViewAnim\$default", "void", parameters.drop(1)))
+        assertFalse(rule.matches("linkageViewAnim\$default", "boolean", parameters))
+        assertFalse(rule.matches("linkageViewAnim", "void", parameters))
+    }
+
+    @Test
+    fun superWallpaperDepthFrameRuleMatchesDeviceAsyncProvider() {
+        val rule = HookProfiles.systemUi
+            .flatMap { it.rules }
+            .first { it.action == HookAction.PROVIDE_SUPER_WALLPAPER_DEPTH_FRAME }
+
+        assertTrue(rule.matches("getLastDepthFrameBitmap", "void", listOf("java.util.function.Function")))
+        assertTrue(rule.matches("getLastDepthFrameBitmap", "android.graphics.Bitmap", emptyList()))
+        assertTrue(rule.matches("getLastDepthFrameBitmap", "android.graphics.Bitmap", listOf("int")))
+        assertFalse(rule.matches("getLastDepthFrameBitmap", "void", emptyList()))
+        assertFalse(rule.matches("getLastDepthFrameBitmap", "void", listOf("java.lang.Object")))
+        assertFalse(rule.matches("getLastDepthFrame", "android.graphics.Bitmap", emptyList()))
+    }
+
+    @Test
+    fun wallpaperRegistrationRuleMatchesListenerMapOperations() {
+        val rule = HookProfiles.miWallpaper
+            .flatMap { it.rules }
+            .first { it.action == HookAction.OBSERVE_WALLPAPER_REGISTRATION }
+
+        assertTrue(rule.matches("put", "java.lang.Object", listOf("java.lang.Object", "java.lang.Object")))
+        assertTrue(rule.matches("remove", "java.lang.Object", listOf("java.lang.Object")))
+        assertTrue(rule.matches("remove", "boolean", listOf("java.lang.Object")))
+        assertTrue(rule.matches("clear", "void", emptyList()))
+        assertFalse(rule.matches("put", "void", listOf("java.lang.Object", "java.lang.Object")))
+        assertFalse(rule.matches("remove", "java.lang.Object", emptyList()))
     }
 
     @Test

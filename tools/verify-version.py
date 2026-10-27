@@ -36,13 +36,25 @@ def main() -> int:
     module_prop = read(ROOT / "app/src/main/resources/META-INF/xposed/module.prop")
 
     version_code = one(r"versionCode\s*=\s*(\d+)", gradle, "Gradle versionCode")
-    version_name = one(r'versionName\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"', gradle, "Gradle versionName")
+    version_name = one(
+        r'versionName\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)"',
+        gradle,
+        "Gradle versionName",
+    )
 
     build_code = one(r"VERSION_CODE:\s*Int\s*=\s*(\d+)", build_config, "BuildConfig VERSION_CODE")
-    build_name = one(r'VERSION_NAME:\s*String\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"', build_config, "BuildConfig VERSION_NAME")
+    build_name = one(
+        r'VERSION_NAME:\s*String\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)"',
+        build_config,
+        "BuildConfig VERSION_NAME",
+    )
 
     module_code = one(r"(?m)^versionCode=(\d+)\s*$", module_prop, "module.prop versionCode")
-    module_name = one(r"(?m)^version=v([0-9]+\.[0-9]+\.[0-9]+)\s*$", module_prop, "module.prop version")
+    module_name = one(
+        r"(?m)^version=v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)\s*$",
+        module_prop,
+        "module.prop version",
+    )
 
     versions = {
         "Gradle": (version_name, version_code),

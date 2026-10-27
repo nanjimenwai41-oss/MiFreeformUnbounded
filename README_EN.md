@@ -4,8 +4,8 @@
 
 A freeform-window boundary and lock-screen glass-clock module for HyperOS 3/4. It is built with Kotlin, Jetpack Compose, MIUIX, and Modern LibXposed API 102. It improves freeform-window movement and forces the lock-screen glass clock in scenes where the stock editor does not support it.
 
-> Current stable version: **v3.0.0** (version code: **20260901**)
-> [Download v3.0.0 Release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0) · [Read the changelog](CHANGELOG.md)
+> Latest prerelease: **v3.0.2-beta.1** (version code: **20261078**); current stable release: **v3.0.0**.
+> [Download v3.0.2-beta.1](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.2-beta.1) · [Download stable v3.0.0](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0) · [Read the changelog](CHANGELOG.md)
 
 ## Features
 
@@ -14,11 +14,11 @@ A freeform-window boundary and lock-screen glass-clock module for HyperOS 3/4. I
 - Modern LibXposed API 102 with static scope support.
 - Class, method, parameter, and return-type validation before every hook; unmatched rules preserve stock behavior and produce diagnostic logs.
 - Hot-reload support and rate-limited diagnostics for different HyperOS builds.
-- A three-page Compose/MIUIX UI: Home, Settings, and About, with separate System UI and lock-screen editor restart actions.
+- A three-page Compose/MIUIX UI: Home, Settings, and About, with 10 restart actions for System UI, Editor, MiWallpaper, six concrete Super wallpapers, or all targets together.
 - Freeform boundary and forced glass-clock switches, edge-distance slider, fine adjustment, reset-to-default action, light/dark themes, system Monet, palette styles, and color specifications.
 - Floating navigation bar, liquid-glass effects, navigation status badges, and predictive back support.
-- An optional System UI hook that reuses the dynamic-video wallpaper depth algorithm for Super wallpapers while preserving stock behavior for other wallpaper types.
-- Preserves the glass-clock effect during wallpaper switching and prevents dynamic-wallpaper filter cleanup from reverting it.
+- Preserves the glass clock and valid depth mask during wallpaper changes and the lockscreen-to-AOD transition.
+- Connects Super wallpapers to the system's depth and foreground-mask frames for clock occlusion; optimized frame transport reduces stutter and black artifacts while ordinary wallpapers keep stock behavior.
 - Settings remain reachable while the module is inactive; the edge-adjustment card becomes disabled and shows “模块未激活” when tapped.
 - Freeform boundary protection has a dedicated secondary settings page. Its master switch controls edge distance and fine adjustment; when disabled, all subordinate controls are dimmed and non-interactive.
 - Settings and secondary-page feature icons follow the MIUIX theme primary color and use wallpaper-derived Monet colors when Monet is enabled.
@@ -32,16 +32,16 @@ A freeform-window boundary and lock-screen glass-clock module for HyperOS 3/4. I
 | Minimum Android | Android 12 (API 31) |
 | Hook framework | A manager supporting Modern LibXposed API 102 |
 | Static scope | `com.android.systemui`, `com.miui.aod`, `com.miui.miwallpaper` |
-| Build toolchain | JDK 21, Android SDK 37, Gradle Wrapper |
+| Build toolchain | JDK 21, Android SDK 37, NDK r27b, Gradle Wrapper |
 
 HyperOS minor releases may rename classes or change method signatures. The module intentionally performs strict matching and skips incompatible rules instead of forcing an unsafe hook.
 
 ## Installation
 
-1. Download the APK from the [v3.0.0 stable release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0).
+1. Download the APK from the [v3.0.2-beta.1 prerelease](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.2-beta.1), or choose the [v3.0.0 stable release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0).
 2. Install it with a module manager that supports Modern LibXposed API 102.
-3. Enable the static scopes `com.android.systemui`, `com.miui.aod`, and `com.miui.miwallpaper`. The module uses a fixed static scope; there is no separate recommended-app list to configure.
-4. Reboot the device, or use the Home actions to restart System UI or the lock-screen editor as needed.
+3. The module uses a fixed static scope whose targets are declared by the module; no recommended-app list needs to be maintained in LSPosed.
+4. Reboot the device, or use the Home actions to restart System UI, Editor, MiWallpaper, any of the six concrete Super wallpapers, or all static scopes.
 5. Open the app and verify that the status card reports Working or Pending restart.
 
 ## Usage

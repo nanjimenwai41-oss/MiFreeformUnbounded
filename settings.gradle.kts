@@ -25,4 +25,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "FreeformUnbounded"
 include(":app")
- 

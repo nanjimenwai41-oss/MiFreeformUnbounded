@@ -49,8 +49,46 @@ internal object ConfigRepository {
         it.copy(superWallpaperDepthEnabled = enabled)
     }
 
+    fun setSafetyModeEnabled(enabled: Boolean) {
+        update {
+            it.copy(
+                safetyModeEnabled = enabled,
+                safetyModeAutoTriggered = false,
+            )
+        }
+        val localWritten = SafetyModePolicy.setManualState(localPrefs, enabled)
+        var remoteWritten = false
+        XposedServiceBridge.service?.let { service ->
+            remoteWritten = runCatching {
+                SafetyModePolicy.setManualState(
+                    service.getRemotePreferences(ModuleConfigKeys.GROUP),
+                    enabled,
+                )
+            }.getOrDefault(false)
+        }
+        if (!localWritten || !remoteWritten) {
+            // A failed disable must not be presented as a durable remote
+            // change. The target processes fail closed until the service is
+            // reachable and the state can be committed.
+            android.util.Log.e(
+                "FreeformUnbounded",
+                "Safety mode state was not durably written: enabled=$enabled " +
+                    "local=$localWritten remote=$remoteWritten",
+            )
+        }
+    }
+
     fun reset() {
         update { AppConfig() }
+        SafetyModePolicy.setManualState(localPrefs, false)
+        XposedServiceBridge.service?.let { service ->
+            runCatching {
+                SafetyModePolicy.setManualState(
+                    service.getRemotePreferences(ModuleConfigKeys.GROUP),
+                    false,
+                )
+            }
+        }
     }
 
     private fun update(transform: (AppConfig) -> AppConfig) {
@@ -61,14 +99,14 @@ internal object ConfigRepository {
 
     private fun persist(config: AppConfig) {
         localPrefs?.edit()?.let { editor ->
-            config.writeTo(editor)
+            config.writeTo(editor, includeSafetyMode = false)
             editor.apply()
         }
         val service = XposedServiceBridge.service ?: return
         runCatching {
             val remote = service.getRemotePreferences(ModuleConfigKeys.GROUP)
             val editor = remote.edit()
-            config.writeTo(editor)
+            config.writeTo(editor, includeSafetyMode = false)
             editor.commit()
         }
     }

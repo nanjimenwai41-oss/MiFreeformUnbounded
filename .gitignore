@@ -60,3 +60,30 @@ log.txt
 *.dmp
 *.pcap
 *.har
+
+# Local experiment APKs and timestamped verification manifests
+/experiments/
+
+# Local Gradle caches, device captures, and reverse-engineering outputs
+/.gradle-*/
+/.tmp*
+/AndroidManifest.xml
+/DebugProbesKt.bin
+/appfunctions-schema.properties
+/classes*.dex
+/flag/
+/assets/
+/CLAUDE.md
+/CONTEXT_SUMMARY.md
+/experiments202610*.txt
+/local.properties
+/libMi*.so
+/Talking to the Moon - Score - Detected Notes/
+/kotlin/
+/kotlin-tooling-metadata.json
+/META-INF/
+/okhttp3/
+/res/
+/*.arsc
+/app/src/main/cpp/libs/
+/app/src/main/cpp/obj/

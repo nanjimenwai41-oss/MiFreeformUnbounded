@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.Security
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.animation.core.MutableTransitionState
@@ -132,6 +133,24 @@ internal fun ConfigScreen(
             item { SectionLabel("模块功能") }
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        title = "模块安全模式",
+                        summary = if (config.safetyModeAutoTriggered) {
+                            "已自动触发：同一作用域在 60 秒内连续加载 4 次；当前所有模块 hooks 均已直通。确认稳定后可手动关闭。"
+                        } else {
+                            "开启后所有作用域 hooks 均直通；模块只会在同一作用域 60 秒内第 4 次加载时自动开启，避免正常单次重启误判。"
+                        },
+                        startAction = {
+                            Icon(
+                                Icons.Rounded.Security,
+                                contentDescription = null,
+                                modifier = Modifier.padding(end = 6.dp),
+                                tint = MiuixTheme.colorScheme.primary,
+                            )
+                        },
+                        checked = config.safetyModeEnabled,
+                        onCheckedChange = ConfigRepository::setSafetyModeEnabled,
+                    )
                     ArrowPreference(
                         title = "自由窗口边界保护",
                         summary = "总开关、最小可见距离和精细调节",

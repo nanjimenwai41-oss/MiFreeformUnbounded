@@ -40,6 +40,12 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Set up Android NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK r27b
+        run: sdkmanager "ndk;27.1.12297006"
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 

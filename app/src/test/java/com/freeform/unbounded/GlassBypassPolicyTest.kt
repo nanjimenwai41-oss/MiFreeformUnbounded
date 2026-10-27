@@ -40,7 +40,7 @@ class GlassBypassPolicyTest {
     }
 
     @Test
-    fun restoresSystemUiGlassOnlyForDepthWallpaperGlassBean() {
+    fun restoresSystemUiGlassFromGlassMarkersDuringRebind() {
         assertTrue(
             GlassBypassPolicy.shouldRestoreSystemUiGlass(
                 ControllerFixture(true),
@@ -49,8 +49,8 @@ class GlassBypassPolicyTest {
         )
         assertFalse(
             GlassBypassPolicy.shouldRestoreSystemUiGlass(
-                ControllerFixture(false),
-                ClockBeanFixture(),
+            null,
+            ClockBeanFixture(),
             ),
         )
         assertFalse(
@@ -73,6 +73,50 @@ class GlassBypassPolicyTest {
                 ClockBeanFixture(style = 4),
             ),
         )
+    }
+
+    @Test
+    fun recognizesHyperOs4GlassBeanMarkers() {
+        assertTrue(
+            GlassBypassPolicy.shouldRestorePersistedSystemUiGlass(
+                ClockBeanFixture(fontStyle = 22, hollowStyle = 0, glassTransparency = 0.15f),
+            ),
+        )
+    }
+
+    @Test
+    fun recognizesFilledHyperOs4GlassBeanMarkers() {
+        assertTrue(
+            GlassBypassPolicy.shouldRestorePersistedSystemUiGlass(
+                ClockBeanFixture(fontStyle = 22, hollowStyle = 0, glassTransparency = 0.15f),
+            ),
+        )
+    }
+
+    @Test
+    fun rejectsPresetOnlyStyleFamiliesWithoutRuntimeGlassEvidence() {
+        listOf(1 to 21, 2 to 21, 3 to 21, 4 to 21, 6 to 21, 7 to 22, 8 to 23).forEach { (style, fontStyle) ->
+            assertFalse(
+                "style=$style fontStyle=$fontStyle",
+                GlassBypassPolicy.shouldRestorePersistedSystemUiGlass(
+                    ClockBeanFixture(style = style, fontStyle = fontStyle, glassTransparency = 0.15f),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun rejectsUnknownOrMalformedGlassMarkers() {
+        listOf(
+            ClockBeanFixture(style = 5, fontStyle = 24, glassTransparency = 0.15f),
+            ClockBeanFixture(style = 7, fontStyle = 24, glassTransparency = 0.15f),
+            ClockBeanFixture(style = 9, fontStyle = 21, glassTransparency = 0.15f),
+            ClockBeanFixture(style = 1, fontStyle = 0, glassTransparency = 0.15f),
+            ClockBeanFixture(style = 1, fontStyle = 22, glassTransparency = 0.21f),
+            ClockBeanFixture(style = 1, fontStyle = 22, glassTransparency = -0.01f),
+        ).forEach { bean ->
+            assertFalse(GlassBypassPolicy.shouldRestorePersistedSystemUiGlass(bean))
+        }
     }
 
     private fun config(resourceType: String, template: String = "all_in_one"): Any =
@@ -109,9 +153,9 @@ class GlassBypassPolicyTest {
         private val template: String = "all_in_one",
         private val clockEffect: Int = 1,
         private val style: Int = 5,
-        private val fontStyle: Int = 24,
-        private val hollowStyle: Int = 1,
-        private val glassTransparency: Float = 0.01f,
+        private val fontStyle: Int = 22,
+        private val hollowStyle: Int = 0,
+        private val glassTransparency: Float = 0.15f,
     ) {
         fun getTemplateId(): String = template
         fun getClockEffect(): Int = clockEffect

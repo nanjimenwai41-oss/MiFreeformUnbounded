@@ -7,6 +7,8 @@ internal data class AppConfig(
     val freeformBoundaryEnabled: Boolean = false,
     val aodGlassEnabled: Boolean = false,
     val superWallpaperDepthEnabled: Boolean = false,
+    val safetyModeEnabled: Boolean = false,
+    val safetyModeAutoTriggered: Boolean = false,
 )
 
 internal object ModuleConfigKeys {
@@ -16,6 +18,10 @@ internal object ModuleConfigKeys {
     const val FREEFORM_BOUNDARY_ENABLED = "freeform_boundary_enabled"
     const val AOD_GLASS_ENABLED = "aod_glass_enabled"
     const val SUPER_WALLPAPER_DEPTH_ENABLED = "super_wallpaper_depth_enabled"
+    const val SAFETY_MODE_ENABLED = "safety_mode_enabled"
+    const val SAFETY_MODE_AUTO_TRIGGERED = "safety_mode_auto_triggered"
+    const val SAFETY_MODE_TRIGGER_SCOPE = "safety_mode_trigger_scope"
+    const val SAFETY_MODE_HISTORY_PREFIX = "safety_mode_history_"
 
     const val DEFAULT_MARGIN = 196
     const val LEGACY_DEFAULT_MARGIN = 48
@@ -30,7 +36,10 @@ internal object ModuleConfigKeys {
     )
 }
 
-internal fun AppConfig.writeTo(editor: SharedPreferences.Editor): SharedPreferences.Editor {
+internal fun AppConfig.writeTo(
+    editor: SharedPreferences.Editor,
+    includeSafetyMode: Boolean = true,
+): SharedPreferences.Editor {
     editor.putInt(ModuleConfigKeys.SECURITY_MARGIN, securityMarginPx)
     editor.putBoolean(ModuleConfigKeys.FREEFORM_BOUNDARY_ENABLED, freeformBoundaryEnabled)
     editor.putBoolean(ModuleConfigKeys.AOD_GLASS_ENABLED, aodGlassEnabled)
@@ -38,6 +47,10 @@ internal fun AppConfig.writeTo(editor: SharedPreferences.Editor): SharedPreferen
         ModuleConfigKeys.SUPER_WALLPAPER_DEPTH_ENABLED,
         superWallpaperDepthEnabled,
     )
+    if (includeSafetyMode) {
+        editor.putBoolean(ModuleConfigKeys.SAFETY_MODE_ENABLED, safetyModeEnabled)
+        editor.putBoolean(ModuleConfigKeys.SAFETY_MODE_AUTO_TRIGGERED, safetyModeAutoTriggered)
+    }
     ModuleConfigKeys.LEGACY_KEYS.forEach(editor::remove)
     return editor
 }
@@ -53,6 +66,8 @@ internal fun SharedPreferences.readConfig(): AppConfig = AppConfig(
         ModuleConfigKeys.SUPER_WALLPAPER_DEPTH_ENABLED,
         false,
     ),
+    safetyModeEnabled = getBoolean(ModuleConfigKeys.SAFETY_MODE_ENABLED, false),
+    safetyModeAutoTriggered = getBoolean(ModuleConfigKeys.SAFETY_MODE_AUTO_TRIGGERED, false),
 )
 
 internal fun normalizeSecurityMargin(value: Int): Int =

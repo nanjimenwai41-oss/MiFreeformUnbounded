@@ -4,8 +4,8 @@
 
 面向 HyperOS 3/4 的自由窗口边界与锁屏玻璃时钟模块。项目使用 Kotlin、Jetpack Compose、MIUIX 和 Modern LibXposed API 102，改善自由窗口拖动体验，并在不支持玻璃时钟的场景下强制使用锁屏玻璃时钟。
 
-> 当前正式版本：**v3.0.0**（版本号：**20260901**）
-> [下载 v3.0.0 Release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0) · [查看更新日志](CHANGELOG.md)
+> 最新预发布：**v3.0.2-beta.1**（版本号：**20261078**）；当前正式版：**v3.0.0**。
+> [下载 v3.0.2-beta.1](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.2-beta.1) · [下载正式版 v3.0.0](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0) · [查看更新日志](CHANGELOG.md)
 
 ## 主要功能
 
@@ -14,12 +14,12 @@
 - 采用 Modern LibXposed API 102，使用静态作用域运行。
 - Hook 前校验类名、方法名、参数类型和返回类型；不匹配时保持系统原行为并写入诊断日志。
 - 支持 Hook 热重载，并在关键路径提供限频日志，方便定位不同 HyperOS 构建差异。
-- 提供首页状态、设置、关于三个页面，以及模块状态卡片和分别重启系统界面/息屏与锁屏编辑的操作。
+- 提供首页状态、设置、关于三个页面，以及模块状态卡片和 10 项重启操作：系统界面、Editor、MiWallpaper、六个具体超级壁纸及全部目标。
 - 设置页支持自由窗口边界保护、强制使用玻璃时钟开关、边缘距离滑条、精细调节、恢复默认配置、深色/浅色模式、系统 Monet、色彩风格和色彩规范。
 - 支持悬浮底栏、液态玻璃效果、导航栏状态角标和预测性返回手势。
 - 针对息屏与锁屏编辑的 all-in-one 时钟，在不支持玻璃时钟的场景下强制使用锁屏玻璃时钟；静态壁纸与其它模板保持系统原行为。
-- 补齐动态壁纸切换后的锁屏玻璃时钟保留和滤镜清理路径，避免应用时回退到混色效果。
-- 可选为超级壁纸启用动态视频壁纸的景深算法；仅在检测到超级壁纸时修改 SystemUI，普通动态壁纸、静态壁纸及其它时钟样式保持系统原行为。
+- 在动态壁纸切换及锁屏转入 AOD 时保留玻璃时钟与有效景深遮罩，避免时钟短暂恢复为未遮挡状态。
+- 为超级壁纸接入系统真实景深与前景遮罩帧，提供锁屏时钟遮挡；优化帧传输以减少卡顿和黑色伪影，普通壁纸继续使用系统原行为。
 - 模块未激活时仍可进入设置页；边缘调节区域会置灰，点击会提示“模块未激活”。
 - 自由窗口边界保护使用独立二级设置页：顶部总开关控制边缘距离与精细调节，关闭时下方控件会灰显并停止响应。
 - 设置页和二级设置页的功能图标跟随 MIUIX 主题主色，在启用 Monet 时同步使用壁纸动态颜色。
@@ -33,16 +33,16 @@
 | 最低 Android | Android 12（API 31） |
 | Hook 框架 | 支持 Modern LibXposed API 102 的管理器 |
 | 静态作用域 | `com.android.systemui`、`com.miui.aod`、`com.miui.miwallpaper` |
-| 构建工具 | JDK 21、Android SDK 37、Gradle Wrapper |
+| 构建工具 | JDK 21、Android SDK 37、NDK r27b、Gradle Wrapper |
 
 不同 HyperOS 小版本可能调整类名或方法签名。模块会在运行时进行严格匹配，未匹配的规则不会强行注入。
 
 ## 安装与启用
 
-1. 从 [v3.0.0 Release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0) 下载正式版 APK。
+1. 从 [v3.0.2-beta.1 预发布](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.2-beta.1) 下载 APK，或选择 [v3.0.0 正式版](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0)。
 2. 使用支持 Modern LibXposed API 102 的模块管理器安装 APK。
-3. 为模块启用静态作用域：`com.android.systemui`、`com.miui.aod` 和 `com.miui.miwallpaper`。本模块使用固定静态作用域，不存在需要单独配置的“推荐应用”列表。
-4. 重启设备，或在首页按需重启系统界面 / 息屏与锁屏编辑。
+3. 本模块使用固定静态作用域，目标由模块声明自动管理，不需要在 LSPosed 中维护推荐应用列表。
+4. 重启设备，或在首页按需重启系统界面、Editor、MiWallpaper、六个具体超级壁纸，亦可一键重启全部静态作用域。
 5. 打开应用首页，确认状态卡显示“工作中”或“待重启”。
 
 ## 使用说明

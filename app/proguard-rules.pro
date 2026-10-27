@@ -9,3 +9,7 @@
 -keep,allowoptimization,allowobfuscation public class * extends io.github.libxposed.api.XposedModule {
     public <init>();
 }
+
+# JNI_OnLoad resolves these classes and RegisterNatives binds their methods by name.
+-keep class com.freeform.unbounded.NativeDepthBridge { *; }
+-keep class com.freeform.unbounded.SuperWallpaperDepthCapture { *; }

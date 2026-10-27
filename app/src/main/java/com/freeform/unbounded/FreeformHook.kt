@@ -9,10 +9,14 @@ import io.github.libxposed.api.XposedModuleInterface.HotReloadedParam
 import io.github.libxposed.api.XposedModuleInterface.HotReloadingParam
 import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam
 import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam
+import java.lang.reflect.Array as ReflectArray
 import java.lang.reflect.Executable
 import java.lang.reflect.Method
+import java.lang.reflect.Modifier
+import java.util.Enumeration
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.roundToInt
 
@@ -24,37 +28,158 @@ class FreeformHook : XposedModule() {
     private val loadedConfig = AtomicReference<HookConfig?>()
     private val dynamicGlassWallpaper = ThreadLocal.withInitial { false }
     private val currentProcessName = AtomicReference<String?>(null)
+    // ConcurrentHashMap is loaded by the boot classloader, so its hook cannot
+    // resolve MiWallpaper classes through receiver.javaClass.classLoader.
+    // Cache the controller's actual r object while an app-classloader hook is
+    // running, then compare map operations by identity.
+    private val wallpaperListenerMap = AtomicReference<Any?>(null)
+    private val runtimeEventSequence = AtomicLong(0)
 
     override fun onModuleLoaded(param: ModuleLoadedParam) {
         currentProcessName.set(param.processName)
+        val startObservation = runCatching {
+            SafetyModePolicy.observeProcessStart(
+                runCatching { getRemotePreferences(ModuleConfigKeys.GROUP) }.getOrNull(),
+                param.processName,
+                onPersistenceFailure = { error ->
+                    log(
+                        Log.ERROR,
+                        TAG,
+                        "Safety mode history persistence failed for ${param.processName}; " +
+                            "automatic trigger is unavailable",
+                        error,
+                    )
+                },
+            )
+        }.getOrElse { error ->
+            // A framework preference implementation can fail during process
+            // bootstrap. Never let the crash guard itself abort module loading.
+            log(
+                Log.ERROR,
+                TAG,
+                "Safety mode observation failed for ${param.processName}; " +
+                    "bypassing hooks in the protected scope",
+                error,
+            )
+            SafetyModePolicy.StartObservation(
+                tracked = SafetyModePolicy.isTrackedProcess(param.processName),
+                // A preference/framework failure must not become a fail-open
+                // path for SystemUI, AOD, or wallpaper renderer processes.
+                enabled = SafetyModePolicy.isTrackedProcess(param.processName),
+                triggered = false,
+                recentStarts = 0,
+                historyPersisted = false,
+            )
+        }
+        if (startObservation.enabled) {
+            val reason = if (!startObservation.historyPersisted) {
+                "Safety guard unavailable; failing closed for ${param.processName}"
+            } else {
+                "Safety mode active; bypassing all hooks for ${param.processName} " +
+                    "recentStarts=${startObservation.recentStarts} " +
+                    "autoTriggered=${startObservation.triggered}"
+            }
+            log(Log.WARN, TAG, reason)
+            return
+        }
         log(
             Log.INFO,
             TAG,
-            "Loaded in ${param.processName}; framework=$frameworkName/$frameworkVersionCode api=$apiVersion"
+            "Loaded in ${param.processName}; module=v${BuildConfig.VERSION_NAME} " +
+                "(${BuildConfig.VERSION_CODE}); framework=$frameworkName/$frameworkVersionCode api=$apiVersion"
         )
+        if (isSuperWallpaperProcess(param.processName)) {
+            // Some HyperOS wallpaper child processes expose the module entry but
+            // do not deliver PackageReady. Install against the process class
+            // loader here so the render-side frame producer is still covered.
+            val loader = Thread.currentThread().contextClassLoader
+                ?: FreeformHook::class.java.classLoader
+                ?: ClassLoader.getSystemClassLoader()
+            log(Log.INFO, TAG, "Super wallpaper child profile install from onModuleLoaded; " +
+                "loader=${loader.javaClass.name}")
+            val nativeInstalled = NativeDepthBridge.install(readConfig().superWallpaperDepthEnabled)
+            log(Log.INFO, TAG, "CI21 native EGL depth bridge installed=$nativeInstalled")
+            installWallpaperProfiles(loader, "${param.processName}@onModuleLoaded")
+        }
     }
 
     override fun onPackageReady(param: PackageReadyParam) {
-        when (param.packageName) {
-            PACKAGE_SYSTEM_UI -> {
+        val process = currentProcessName.get().orEmpty()
+        if (isSafetyModeEnabled()) {
+            log(
+                Log.WARN,
+                TAG,
+                "Safety mode active; skipped profile installation package=${param.packageName} " +
+                    "process=$process",
+            )
+            return
+        }
+        log(
+            Log.INFO,
+            TAG,
+            "Package ready package=${param.packageName} process=$process loader=${param.classLoader.javaClass.name}",
+        )
+        when {
+            param.packageName == PACKAGE_SYSTEM_UI -> {
                 // The boundary is intentionally a SystemUI-only hook. Cache the
                 // remote preference for this process so changing the setting never
                 // mutates an already-running window manager.
                 loadedConfig.set(readConfig())
+                installClockMaskEffectObserver()
+                // Register before any depth hook is called. The wallpaper child
+                // process can publish its first frame during SystemUI startup,
+                // before isDepthVideoEnable() is reached.
+                VideoDepthPolicy.contextOf(null)?.let(SuperWallpaperFrameBridge::installSystemUiReceiver)
                 installProfiles(HookProfiles.systemUi, param.classLoader, PACKAGE_SYSTEM_UI)
             }
-            PACKAGE_AOD -> installProfiles(
+            param.packageName == PACKAGE_AOD -> installProfiles(
                 HookProfiles.aod,
                 param.classLoader,
                 "$PACKAGE_AOD@${currentProcessName.get().orEmpty()}",
             )
-            PACKAGE_MI_WALLPAPER -> installProfiles(
+            isSuperWallpaperProcess(process) || param.packageName.startsWith("$PACKAGE_MI_WALLPAPER.") ->
+                installWallpaperProfiles(param.classLoader, "${param.packageName}@$process")
+            param.packageName == PACKAGE_MI_WALLPAPER -> installProfiles(
                 HookProfiles.miWallpaper,
                 param.classLoader,
-                "$PACKAGE_MI_WALLPAPER@${currentProcessName.get().orEmpty()}",
+                "$PACKAGE_MI_WALLPAPER@$process",
             )
         }
     }
+
+    private fun installWallpaperProfiles(classLoader: ClassLoader, process: String) {
+        NativeDepthBridge.install(readConfig().superWallpaperDepthEnabled)
+        installProfiles(HookProfiles.miWallpaper, classLoader, process)
+        installDiscoveredSuperWallpaperProfiles(classLoader, process)
+    }
+
+    /** Public Android API hook: retain the actual stock effect instead of guessing a private getter. */
+    private fun installClockMaskEffectObserver() {
+        if (!readConfig().superWallpaperDepthEnabled || android.os.Build.VERSION.SDK_INT < 33) return
+        val id = "freeform-unbounded:clock-mask-effect-observer"
+        if (!installedHookIds.add(id)) return
+        runCatching {
+            val method = android.view.View::class.java.getDeclaredMethod(
+                "setRenderEffect", android.graphics.RenderEffect::class.java,
+            )
+            hook(method).setId(id).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(XposedInterface.Hooker { chain ->
+                    val view = chain.getThisObject() as? android.view.View
+                    if (view == null) chain.proceed()
+                    else chain.proceed(arrayOf(ClockMaskCompositor.observeEffectWrite(
+                        view, chain.getArg(0) as? android.graphics.RenderEffect,
+                    )))
+                })
+            ClockMaskCompositor.markEffectObserverInstalled()
+            log(Log.INFO, TAG, "CI77 installed public View.setRenderEffect clock-mask composition hook")
+        }.onFailure {
+            installedHookIds.remove(id)
+            log(Log.ERROR, TAG, "CI77 clock-mask effect observer failed", it)
+        }
+    }
+
+    private fun isSuperWallpaperProcess(process: String): Boolean =
+        process.startsWith("$PACKAGE_MI_WALLPAPER.")
 
     override fun onHotReloading(param: HotReloadingParam): Boolean {
         log(Log.INFO, TAG, "Hot reload requested by ${param.extras?.getString("source", "unknown")}")
@@ -62,6 +187,10 @@ class FreeformHook : XposedModule() {
     }
 
     override fun onHotReloaded(param: HotReloadedParam) {
+        if (isSafetyModeEnabled()) {
+            log(Log.WARN, TAG, "Safety mode active; skipped hot-reload hook replacement")
+            return
+        }
         log(Log.INFO, TAG, "Hot reloaded with ${param.oldHookHandles.size} old hook(s)")
         param.oldHookHandles.forEach { handle ->
             val action = parseAction(handle.id)
@@ -94,14 +223,14 @@ class FreeformHook : XposedModule() {
             } catch (_: ClassNotFoundException) {
                 logLimited(
                     Log.INFO,
-                    "missing:${profile.className}",
+                    "$process:missing:${profile.className}",
                     "$process: profile class not found: ${profile.className}",
                 )
                 return@forEach
             } catch (error: LinkageError) {
                 logLimited(
                     Log.WARN,
-                    "link:${profile.className}",
+                    "$process:link:${profile.className}",
                     "Cannot link ${profile.className}",
                     error,
                 )
@@ -109,13 +238,13 @@ class FreeformHook : XposedModule() {
             }
 
             var matchedInClass = 0
-            targetClass.declaredMethods.forEach { method ->
+            methodsFor(targetClass).forEach { method ->
                 val rule = profile.rules.firstOrNull { it.matches(method) } ?: return@forEach
                 matchedInClass++
                 if (installHook(profile, method, rule)) installed++
             }
             if (matchedInClass == 0) {
-                val candidates = targetClass.declaredMethods
+                val candidates = methodsFor(targetClass)
                     .asSequence()
                     .filter(::isAdaptationCandidate)
                     .take(MAX_DIAGNOSTIC_METHODS)
@@ -123,7 +252,7 @@ class FreeformHook : XposedModule() {
                     .ifBlank { "none" }
                 logLimited(
                     Log.WARN,
-                    "unmatched:${profile.className}",
+                    "$process:unmatched:${profile.className}",
                     "$process: class exists but no known signature matched: ${profile.className}; " +
                         "candidate methods=$candidates",
                 )
@@ -137,12 +266,104 @@ class FreeformHook : XposedModule() {
         )
     }
 
+    private fun methodsFor(type: Class<*>): Sequence<Method> = sequence {
+        val seen = HashSet<String>()
+        var current: Class<*>? = type
+        while (current != null) {
+            current.declaredMethods.forEach { method ->
+                // LibXposed cannot intercept interface/abstract declarations.
+                // Concrete implementations are discovered from their owning class.
+                if (!Modifier.isAbstract(method.modifiers) && seen.add(methodSignature(method))) {
+                    yield(method)
+                }
+            }
+            current = current.superclass
+        }
+    }
+
+    /**
+     * Snow-mountain builds have moved the renderer behind different package
+     * and base-class names. Inspect only the wallpaper APK's dex entries and
+     * then reuse the same signature-checked engine rule as known profiles.
+     */
+    private fun installDiscoveredSuperWallpaperProfiles(classLoader: ClassLoader, process: String) {
+        var inspected = 0
+        var matched = 0
+        discoverDexClassNames(classLoader)
+            .filter { name ->
+                name.startsWith("$PACKAGE_MI_WALLPAPER.") &&
+                    DISCOVERY_NAME_PARTS.any(name.lowercase()::contains)
+            }
+            .distinct()
+            .take(MAX_DISCOVERY_CLASSES)
+            .forEach { className ->
+                val targetClass = runCatching { Class.forName(className, false, classLoader) }.getOrNull()
+                    ?: return@forEach
+                inspected++
+                val profile = HookProfiles.superWallpaperEngine(className)
+                val matchedMethods = methodsFor(targetClass).filter { method ->
+                    profile.rules.any { it.matches(method) }
+                }.toList()
+                if (matchedMethods.isNotEmpty()) {
+                    matched += matchedMethods.count { method ->
+                        val rule = profile.rules.first { it.matches(method) }
+                        installHook(profile, method, rule)
+                    }
+                }
+            }
+        log(
+            if (matched > 0) Log.INFO else Log.WARN,
+            TAG,
+            "$process: discovered Super wallpaper classes inspected=$inspected matchedHooks=$matched",
+        )
+    }
+
+    private fun discoverDexClassNames(classLoader: ClassLoader): Sequence<String> = sequence {
+        val pathList = findField(classLoader.javaClass, "pathList")?.let { field ->
+            runCatching {
+                field.isAccessible = true
+                field.get(classLoader)
+            }.getOrNull()
+        } ?: return@sequence
+        val elements = findField(pathList.javaClass, "dexElements")?.let { field ->
+            runCatching {
+                field.isAccessible = true
+                field.get(pathList)
+            }.getOrNull()
+        } ?: return@sequence
+        for (index in 0 until ReflectArray.getLength(elements)) {
+            val element = ReflectArray.get(elements, index) ?: continue
+            val dexFile = findField(element.javaClass, "dexFile")?.let { field ->
+                runCatching {
+                    field.isAccessible = true
+                    field.get(element)
+                }.getOrNull()
+            } ?: continue
+            val entries = runCatching {
+                dexFile.javaClass.getMethod("entries").invoke(dexFile) as? Enumeration<*>
+            }.getOrNull() ?: continue
+            while (entries.hasMoreElements()) {
+                val name = entries.nextElement() as? String
+                if (name != null) yield(name)
+            }
+        }
+    }
+
+    private fun findField(type: Class<*>, name: String): java.lang.reflect.Field? {
+        var current: Class<*>? = type
+        while (current != null) {
+            current.declaredFields.firstOrNull { it.name == name }?.let { return it }
+            current = current.superclass
+        }
+        return null
+    }
+
     private fun installHook(
         profile: ClassHookProfile,
         method: Method,
         rule: MethodHookRule,
     ): Boolean {
-        val hookId = "freeform-unbounded:${profile.className}#${methodSignature(method)}:${rule.action}"
+        val hookId = "freeform-unbounded:${method.declaringClass.name}#${methodSignature(method)}:${rule.action}"
         if (!installedHookIds.add(hookId)) return false
 
         return try {
@@ -191,12 +412,39 @@ class FreeformHook : XposedModule() {
     ): Any? {
         val config = loadedConfig.get() ?: readConfig().also { loadedConfig.compareAndSet(null, it) }
 
+        // The preference is checked on every invocation so a manual or
+        // automatic shutdown also protects already-running target processes.
+        if (isSafetyModeEnabled()) {
+            logLimited(
+                Log.WARN,
+                "safety-bypass:$hookId",
+                "Safety mode active; passed through ${profile.className}#${method.name}",
+            )
+            return chain.proceed()
+        }
+
         val featureEnabled = when {
             rule.action in FREEFORM_ACTIONS -> config.freeformBoundaryEnabled
             rule.action in AOD_GLASS_ACTIONS -> config.aodGlassEnabled
             rule.action == HookAction.ENABLE_SUPER_WALLPAPER_VIDEO_DEPTH ->
                 config.superWallpaperDepthEnabled
             rule.action == HookAction.ENABLE_SUPER_WALLPAPER_VIDEO_RENDER ->
+                config.superWallpaperDepthEnabled
+            rule.action == HookAction.PROVIDE_SUPER_WALLPAPER_DEPTH_FRAME ->
+                config.superWallpaperDepthEnabled
+            rule.action == HookAction.OBSERVE_AOD_CLOCK_TRANSITION ->
+                config.superWallpaperDepthEnabled
+            rule.action == HookAction.ADAPT_VIDEO_DEPTH_SOURCE ->
+                config.superWallpaperDepthEnabled
+            rule.action == HookAction.OBSERVE_VIDEO_DEPTH_RENDER_PATH ->
+                config.superWallpaperDepthEnabled
+            rule.action == HookAction.CAPTURE_VIDEO_DEPTH_CALLBACK ->
+                config.superWallpaperDepthEnabled
+            rule.action == HookAction.OBSERVE_SUPER_WALLPAPER_ENGINE ->
+                config.superWallpaperDepthEnabled
+            rule.action == HookAction.OBSERVE_SUPER_WALLPAPER_RUNTIME ->
+                config.superWallpaperDepthEnabled
+            rule.action == HookAction.OBSERVE_WALLPAPER_REGISTRATION ->
                 config.superWallpaperDepthEnabled
             else -> true
         }
@@ -448,44 +696,99 @@ class FreeformHook : XposedModule() {
                     result
                 } else {
                     val clockBean = chain.getArg(2)
-                    if (GlassBypassPolicy.shouldRestoreSystemUiGlass(chain.getThisObject(), clockBean)) {
-                        restoreSystemUiGlassBean(clockBean, hookId, "in SystemUI for dynamic wallpaper")
+                    val shouldRestore = GlassBypassPolicy.shouldRestoreSystemUiGlass(
+                        chain.getThisObject(),
+                        clockBean,
+                    )
+                    if (shouldRestore) {
+                        // Restore before the receiver reads the bean. MIUI can
+                        // normalize the incoming effect during this call.
+                        restoreSystemUiGlassBean(clockBean, hookId, "before SystemUI clock rebind")
                     }
-                    chain.proceed()
+                    val result = chain.proceed()
+                    // Also restore after the call so a normalization performed
+                    // inside the receiver cannot leave the applied bean at 1.
+                    if (shouldRestore) {
+                        restoreSystemUiGlassBean(clockBean, hookId, "after SystemUI clock rebind")
+                    }
+                    result
                 }
             }
 
             HookAction.ENABLE_SUPER_WALLPAPER_VIDEO_DEPTH -> {
                 val target = chain.getThisObject()
                 val stockResult = chain.proceed()
-                if (VideoDepthPolicy.isSuperWallpaperTarget(target)) {
+                val superTarget = VideoDepthPolicy.isSuperWallpaperTarget(target)
+                val subjectReady = superTarget && VideoDepthPolicy.isDepthInputReady(target)
+                if (method.name == "isWallpaperSupportDepth" && subjectReady) {
+                    VideoDepthPolicy.applyVideoDepth(target)
                     logLimited(
                         Log.INFO,
                         hookId,
-                        "Observed stock depth result for Super wallpaper method=${method.name}: $stockResult; no override",
+                        "Enabled stock Super wallpaper subject-mask depth support; " +
+                            "stock=$stockResult subjectMask=true",
                     )
+                    true
+                } else if (method.name == "updateShowDepthState" && subjectReady) {
+                    // The stock setting remains 0 for Super wallpapers on this
+                    // build. Enable only the already-existing SystemUI static
+                    // subject-mask evaluator for this panel instance.
+                    val forced = VideoDepthPolicy.forceStaticSubjectDepth(target)
+                    logLimited(
+                        Log.INFO,
+                        hookId,
+                        "Enabled SystemUI subject-mask depth state for Super wallpaper; " +
+                            "stock=$stockResult subjectMask=true forced=$forced",
+                    )
+                    stockResult
+                } else if (superTarget) {
+                    logLimited(
+                        Log.INFO,
+                        hookId,
+                        "Observed Super wallpaper depth method=${method.name}: " +
+                            "kept stock=$stockResult subjectMask=$subjectReady",
+                    )
+                    stockResult
+                } else {
+                    stockResult
                 }
-                stockResult
             }
 
             HookAction.ENABLE_SUPER_WALLPAPER_VIDEO_RENDER -> {
                 val target = chain.getThisObject()
-                val stockResult = chain.proceed()
                 if (VideoDepthPolicy.isSuperWallpaperTarget(target)) {
+                    VideoDepthPolicy.contextOf(target)?.let(SuperWallpaperFrameBridge::installSystemUiReceiver)
+                    SuperWallpaperFrameBridge.registerDepthConsumer(target)
+                }
+                // CI74 只裁剪时钟，不再为了复制壁纸而强制创建视频前景 Surface。
+                chain.proceed()
+            }
+
+            HookAction.PROVIDE_SUPER_WALLPAPER_DEPTH_FRAME -> {
+                val target = chain.getThisObject()
+                val superTarget = VideoDepthPolicy.isSuperWallpaperTarget(target)
+                val result = chain.proceed()
+                if (superTarget) {
                     logLimited(
                         Log.INFO,
                         hookId,
-                        "Observed stock video-depth surface decision for Super wallpaper (stock=$stockResult); no override",
+                        "Kept stock Super wallpaper depth-frame request; " +
+                            "GPU Z-buffer remains diagnostic-only result=${describeDepthValue(result)}",
                     )
                 }
-                stockResult
+                result
             }
 
             HookAction.ESTABLISH_SUPER_WALLPAPER_SESSION -> {
                 val target = chain.getThisObject()
                 val before = VideoDepthPolicy.sessionSnapshot(target)
                 val result = chain.proceed()
-                val after = VideoDepthPolicy.establishSession(target, config.superWallpaperDepthEnabled)
+                val after = if (method.name == "onSurfaceDestroyed") {
+                    VideoDepthPolicy.invalidateSession(target)
+                    null
+                } else {
+                    VideoDepthPolicy.establishSession(target, config.superWallpaperDepthEnabled)
+                }
                 if (after != null) {
                     logLimited(
                         Log.INFO,
@@ -495,7 +798,12 @@ class FreeformHook : XposedModule() {
                             "previous=${before?.generation ?: 0}",
                     )
                 } else {
-                    VideoDepthPolicy.invalidateSession(target)
+                    logLimited(
+                        Log.INFO,
+                        hookId,
+                        "Invalidated Super wallpaper depth session after ${method.name}; " +
+                            "previous=${before?.generation ?: 0}",
+                    )
                 }
                 result
             }
@@ -504,11 +812,11 @@ class FreeformHook : XposedModule() {
                 val target = chain.getThisObject()
                 val snapshot = VideoDepthPolicy.sessionSnapshot(target)
                 if (snapshot?.compatibilityKind == WallpaperKind.VIDEO) {
-                    VideoDepthPolicy.applyVideoDepth(target)
                     logLimited(
-                        Log.DEBUG,
+                        Log.WARN,
                         hookId,
-                        "Prepared dynamic-video depth input generation=${snapshot.generation}",
+                        "CI17 blocked synthetic Super wallpaper video-depth preparation " +
+                            "generation=${snapshot.generation}; no verified renderer depth contract",
                     )
                 }
                 chain.proceed()
@@ -516,16 +824,28 @@ class FreeformHook : XposedModule() {
 
             HookAction.OBSERVE_VIDEO_DEPTH_CHAIN -> {
                 val target = chain.getThisObject()
-                val before = VideoDepthPolicy.sessionSnapshot(target)
+                val superTarget = VideoDepthPolicy.isSuperWallpaperTarget(target)
+                if (superTarget) SuperWallpaperFrameBridge.registerDepthConsumer(target)
+                val args = chain.getArgs()
                 val result = chain.proceed()
-                val after = VideoDepthPolicy.sessionSnapshot(target)
-                logLimited(
-                    Log.INFO,
-                    hookId,
-                    "CI17 observed ${method.name}${method.parameterTypes.toList()} " +
-                        "result=$result session=${after?.generation ?: before?.generation ?: 0} " +
-                        "compat=${after?.compatibilityKind ?: before?.compatibilityKind ?: WallpaperKind.UNKNOWN}",
-                )
+                if (superTarget) {
+                    val keyguardShowing = if (method.name == "updateVideoDepthVisibility") {
+                        args.getOrNull(1) as? Boolean
+                    } else null
+                    ClockMaskCompositor.refresh(target, keyguardShowing)
+                }
+                result
+            }
+
+            HookAction.OBSERVE_AOD_CLOCK_TRANSITION -> {
+                val args = chain.getArgs()
+                val panel = args.firstOrNull()
+                // DEX-verified static linkage signature is
+                // (Panel, show, transitionName, mask). Arm retention before
+                // stock code starts its clock/surface transition.
+                ClockMaskCompositor.beginAodTransition(panel, args.getOrNull(1) as? Boolean ?: true)
+                val result = chain.proceed()
+                ClockMaskCompositor.refresh(panel)
                 result
             }
 
@@ -540,25 +860,192 @@ class FreeformHook : XposedModule() {
                 result
             }
 
-            HookAction.OBSERVE_VIDEO_DEPTH_CALLBACK -> {
-                val result = chain.proceed()
-                logLimited(
-                    Log.INFO,
-                    hookId,
-                    "CI17 depth callback ${method.name}${method.parameterTypes.toList()} " +
-                        "args=${describeDepthCallbackArgs(chain.getArgs())} result=$result",
-                )
-                result
-            }
-
-            HookAction.OBSERVE_SUPER_WALLPAPER_ENGINE -> {
+            HookAction.OBSERVE_VIDEO_DEPTH_RENDER_PATH -> {
                 val args = chain.getArgs()
                 val result = chain.proceed()
                 logLimited(
                     Log.INFO,
                     hookId,
-                    "CI17 super engine ${profile.className}#${method.name}${method.parameterTypes.toList()} " +
-                        "args=${describeDepthCallbackArgs(args)} result=${describeDepthValue(result)}",
+                    "CI24 video-depth render path " +
+                        "class=${method.declaringClass.name} method=${methodSignature(method)} " +
+                        "args=${describeRenderPathArgs(args)} result=${describeDepthValue(result)}",
+                )
+                result
+            }
+
+            HookAction.OBSERVE_VIDEO_DEPTH_CALLBACK -> {
+                val args = chain.getArgs()
+                val result = chain.proceed()
+                val superTarget = VideoDepthPolicy.isSuperWallpaperTarget(chain.getThisObject())
+                val accepted = if (!superTarget) {
+                    false
+                } else if (method.name == "onGetLastDepthFrameSuccess") {
+                    SuperWallpaperFrameBridge.acceptIncomingFrame(args)
+                } else {
+                    SuperWallpaperFrameBridge.clear()
+                    false
+                }
+                logLimited(
+                    Log.INFO,
+                    hookId,
+                        "CI17 depth callback ${method.name}${method.parameterTypes.toList()} " +
+                        "args=${describeDepthCallbackArgs(args)} result=$result " +
+                        "superTarget=$superTarget accepted=$accepted",
+                )
+                result
+            }
+
+            HookAction.CAPTURE_VIDEO_DEPTH_CALLBACK -> {
+                val args = chain.getArgs()
+                val superTarget = VideoDepthPolicy.isSuperWallpaperTarget(chain.getThisObject())
+                val removed = if (
+                    superTarget && (
+                        method.name.contains("unregister", ignoreCase = true) ||
+                            method.name.contains("remove", ignoreCase = true)
+                        )
+                ) {
+                    SuperWallpaperFrameBridge.unregisterCallbacks(args)
+                } else {
+                    0
+                }
+                val added = if (superTarget && removed == 0) {
+                    SuperWallpaperFrameBridge.registerCallbacks(args)
+                } else {
+                    0
+                }
+                val result = chain.proceed()
+                logLimited(
+                    Log.INFO,
+                    hookId,
+                    "CI17 depth callback registration ${profile.className}#${method.name} " +
+                        "superTarget=$superTarget added=$added removed=$removed " +
+                        "active=${SuperWallpaperFrameBridge.callbackCount()}",
+                )
+                result
+            }
+
+            HookAction.ADAPT_VIDEO_DEPTH_SOURCE -> {
+                val result = chain.proceed()
+                // A normal rendered Bitmap is not a depth map. Returning a
+                // luminance/edge estimate here was the source of the wrong
+                // cutouts, so this adapter is deliberately pass-through until
+                // MIUI supplies an actual depth frame through its callback.
+                logLimited(
+                    Log.INFO,
+                    hookId,
+                    "CI17 depth source ${method.name} kept stock result; no synthetic Super-wallpaper depth",
+                )
+                result
+            }
+
+            HookAction.OBSERVE_WALLPAPER_REGISTRATION -> {
+                val receiver = chain.getThisObject()
+                val args = chain.getArgs()
+                val mapOperation = method.name == "put" || method.name == "remove" || method.name == "clear"
+                val realListenerMap = !mapOperation || isWallpaperListenerMap(receiver)
+                if (!realListenerMap) {
+                    return chain.proceed()
+                }
+                val before = describeWallpaperRegistration(receiver, method.name)
+                val result = chain.proceed()
+                val after = describeWallpaperRegistration(receiver, method.name)
+                logLimited(
+                    Log.INFO,
+                    hookId,
+                    "CI25 wallpaper registration class=${method.declaringClass.name} " +
+                        "method=${methodSignature(method)} args=${describeRenderPathArgs(args)} " +
+                        "before=$before after=$after",
+                )
+                result
+            }
+
+            HookAction.OBSERVE_SUPER_WALLPAPER_RUNTIME -> {
+                val args = chain.getArgs()
+                val receiver = chain.getThisObject()
+                when (method.name) {
+                    "nInit" -> {
+                        val initWidth = args.getOrNull(0) as? Int ?: 0
+                        val initHeight = args.getOrNull(1) as? Int ?: 0
+                        NativeDepthBridge.resetReadback()
+                        SuperWallpaperDepthCapture.configure(initWidth, initHeight)
+                        if (readConfig().superWallpaperDepthEnabled) {
+                            val traceInstalled = NativeDepthBridge.installFrameworkLoaderProbe()
+                            log(
+                                Log.INFO,
+                                TAG,
+                                "CI58 framework loader slot probe prepared before renderer init installed=$traceInstalled",
+                            )
+                        }
+                    }
+                    "nResizeViewPort" -> {
+                        val resizeWidth = args.getOrNull(0) as? Int ?: 0
+                        val resizeHeight = args.getOrNull(1) as? Int ?: 0
+                        SuperWallpaperDepthCapture.configure(resizeWidth, resizeHeight)
+                    }
+                    "nSetSurface" -> NativeDepthBridge.resetReadback()
+                    else -> Unit
+                }
+                val renderTimestamp = args.firstOrNull() as? Long
+                val result = chain.proceed()
+                if (method.name == "nInit") {
+                    if (readConfig().superWallpaperDepthEnabled) {
+                        val traceInstalled = NativeDepthBridge.installFrameworkLoaderProbe()
+                        log(
+                            Log.INFO,
+                            TAG,
+                            "CI58 framework loader slot probe retried after renderer init installed=$traceInstalled",
+                        )
+                    }
+                    val probeInstalled = NativeDepthBridge.install(
+                        readConfig().superWallpaperDepthEnabled,
+                    )
+                    log(
+                        Log.INFO,
+                        TAG,
+                        "CI46 Filament camera probe retried after renderer init installed=$probeInstalled",
+                    )
+                }
+                val event = runtimeEventSequence.incrementAndGet()
+                val conclusion = when (method.name) {
+                    "nRender" -> "render-call-observed; native callback validates renderer context and attachments"
+                    "doFrame" -> "render-call-only; no depth Bitmap/ByteBuffer output"
+                    "nSetSurface" -> "surface-bound=${args.any { it is android.view.Surface && it.isValid }}"
+                    "threadSwapBuffers" -> "native-swap-thread-notify; capture belongs to verified native callback"
+                    "nInit" -> "native-init-only; no depth output contract"
+                    "nDestroy", "a" -> "renderer-destroyed"
+                    else -> if (method.name.startsWith("n")) "native-call-observed" else "renderer-call-observed"
+                }
+                logLimited(
+                    Log.INFO,
+                    hookId,
+                    "CI17 runtime event=$event process=${currentProcessName.get().orEmpty()} " +
+                        "class=${method.declaringClass.name} this=${receiver?.let(System::identityHashCode) ?: 0} " +
+                        "method=${methodSignature(method)} args=${describeDepthCallbackArgs(args)} " +
+                        "result=${describeDepthValue(result)} conclusion=$conclusion",
+                )
+                if (method.name == "nDestroy" || method.name == "a") {
+                    NativeDepthBridge.resetReadback()
+                    SuperWallpaperDepthCapture.reset()
+                    SuperWallpaperFrameBridge.clear(VideoDepthPolicy.contextOf(null), reason = "renderer-destroyed")
+                }
+                result
+            }
+
+            HookAction.OBSERVE_SUPER_WALLPAPER_ENGINE -> {
+                val args = chain.getArgs()
+                val context = VideoDepthPolicy.contextOf(chain.getThisObject())
+                val result = chain.proceed()
+                if (method.name == "onSurfaceDestroyed") {
+                    SuperWallpaperFrameBridge.clear(context, reason = "surface-destroyed")
+                }
+                val surfaceDestroyed = method.name == "onSurfaceDestroyed"
+                logLimited(
+                    Log.INFO,
+                    hookId,
+                        "CI17 super engine ${profile.className}#${method.name}${method.parameterTypes.toList()} " +
+                        "args=${describeDepthCallbackArgs(args)} result=${describeDepthValue(result)} " +
+                        "captured=false delivered=0 callbacks=${SuperWallpaperFrameBridge.callbackCount()} " +
+                        "frame=passthrough; renderer output is not a depth frame",
                 )
                 result
             }
@@ -576,11 +1063,141 @@ class FreeformHook : XposedModule() {
         }
     }
 
+    private fun describeRenderPathArgs(args: List<Any?>): String = args.mapIndexed { index, arg ->
+        when (arg) {
+            null -> "$index:null"
+            is android.view.Surface ->
+                "$index:Surface@${System.identityHashCode(arg)}(valid=${arg.isValid})"
+            is android.graphics.Bitmap -> "$index:Bitmap(${arg.width}x${arg.height},${arg.config})"
+            is android.net.Uri -> "$index:Uri($arg)"
+            else -> "$index:${arg.javaClass.name}@${System.identityHashCode(arg)}($arg)"
+        }
+    }.joinToString(prefix = "[", postfix = "]")
+
     private fun describeDepthValue(value: Any?): String = when (value) {
         null -> "null"
         is android.graphics.Bitmap -> "Bitmap(${value.width}x${value.height},${value.config})"
         is java.nio.ByteBuffer -> "ByteBuffer(remaining=${value.remaining()})"
         else -> "${value.javaClass.name}@${System.identityHashCode(value)}"
+    }
+
+    private fun describeWallpaperRegistration(receiver: Any?, methodName: String): String {
+        if (receiver == null) return "receiver=null"
+        val className = receiver.javaClass.name
+        val receiverMap = receiver as? Map<*, *>
+        val backingMap = receiverMap ?: findBackingMap(receiver)
+        val controller = if (className == "com.miui.miwallpaper.manager.WallpaperServiceController") {
+            receiver
+        } else {
+            findWallpaperController(receiver.javaClass.classLoader)
+        }
+        val map = receiverMap ?: backingMap ?: readFieldValue(controller, "r") as? Map<*, *>
+        if (map != null) {
+            wallpaperListenerMap.set(map)
+        }
+        val entries = map?.entries?.joinToString(prefix = "[", postfix = "]") { entry ->
+            "${entry.key}:${entry.value?.javaClass?.name ?: "null"}@${entry.value?.let(System::identityHashCode) ?: 0}"
+        } ?: "unavailable"
+        val listener = if (methodName == "put" || methodName == "remove" || methodName == "clear") {
+            null
+        } else {
+            readFieldValue(receiver, "t")
+        }
+        val engineId = if (methodName == "put" || methodName == "remove" || methodName == "clear") {
+            null
+        } else {
+            invokeNoArg(receiver, "i")
+        }
+        val detail = if (methodName == "setLockscreenVideoSurface") {
+            "surfaces=${describeSurfaceFields(receiver)}"
+        } else if (methodName == "put" || methodName == "remove" || methodName == "clear") {
+            "mapOperation=$methodName"
+        } else {
+            "listener=${listener?.javaClass?.name ?: "null"}@${listener?.let(System::identityHashCode) ?: 0} " +
+                "engineId=${engineId ?: "unavailable"}"
+        }
+        val backing = if (backingMap != null && backingMap !== receiver) {
+            " backingMap@${System.identityHashCode(backingMap)}"
+        } else {
+            ""
+        }
+        return "receiver=$className@${System.identityHashCode(receiver)}$backing $detail " +
+            "controller=${controller?.javaClass?.name ?: "null"} mapSize=${map?.size ?: -1} entries=$entries"
+    }
+
+    private fun isWallpaperListenerMap(receiver: Any?): Boolean {
+        val map = (receiver as? Map<*, *>) ?: findBackingMap(receiver) ?: return false
+        return wallpaperListenerMap.get() === map
+    }
+
+    private fun findBackingMap(target: Any?): Map<*, *>? {
+        if (target == null) return null
+        return runCatching {
+            var type: Class<*>? = target.javaClass
+            while (type != null) {
+                for (field in type.declaredFields) {
+                    if (!Map::class.java.isAssignableFrom(field.type)) continue
+                    field.isAccessible = true
+                    val value = field.get(target)
+                    if (value is Map<*, *>) return@runCatching value
+                }
+                type = type.superclass
+            }
+            null
+        }.getOrNull()
+    }
+
+    private fun findWallpaperController(loader: ClassLoader?): Any? = runCatching {
+        val type = Class.forName(
+            "com.miui.miwallpaper.manager.WallpaperServiceController",
+            false,
+            loader ?: FreeformHook::class.java.classLoader,
+        )
+        val getter = type.declaredMethods.firstOrNull {
+            java.lang.reflect.Modifier.isStatic(it.modifiers) &&
+                it.name == "l" && it.parameterTypes.isEmpty()
+        } ?: return@runCatching null
+        getter.isAccessible = true
+        getter.invoke(null)
+    }.getOrNull()
+
+    private fun readFieldValue(target: Any?, name: String): Any? {
+        if (target == null) return null
+        return runCatching {
+            val field = findField(target.javaClass, name) ?: return@runCatching null
+            field.isAccessible = true
+            field.get(target)
+        }.getOrNull()
+    }
+
+    private fun invokeNoArg(target: Any?, name: String): Any? {
+        if (target == null) return null
+        return runCatching {
+            var type: Class<*>? = target.javaClass
+            while (type != null) {
+                val method = type.declaredMethods.firstOrNull {
+                    it.name == name && it.parameterTypes.isEmpty()
+                }
+                if (method != null) {
+                    method.isAccessible = true
+                    return@runCatching method.invoke(target)
+                }
+                type = type.superclass
+            }
+            null
+        }.getOrNull()
+    }
+
+    private fun describeSurfaceFields(target: Any?): String {
+        val names = listOf("D", "E", "backgroundSurface", "foregroundSurface")
+        return names.joinToString(prefix = "[", postfix = "]") { name ->
+            val value = readFieldValue(target, name)
+            if (value is android.view.Surface) {
+                "$name=Surface@${System.identityHashCode(value)} valid=${value.isValid}"
+            } else {
+                "$name=${value?.javaClass?.name ?: "null"}"
+            }
+        }
     }
 
     private fun restoreSystemUiGlassBean(
@@ -621,24 +1238,46 @@ class FreeformHook : XposedModule() {
     private fun readConfig(): HookConfig {
         val prefs = runCatching { getRemotePreferences(ModuleConfigKeys.GROUP) }.getOrNull()
             ?: return HookConfig()
-        return HookConfig(
-            securityMarginPx = normalizeSecurityMargin(prefs.getInt(
-                ModuleConfigKeys.SECURITY_MARGIN,
-                ModuleConfigKeys.DEFAULT_MARGIN,
-            )),
-            freeformBoundaryEnabled = prefs.getBoolean(
-                ModuleConfigKeys.FREEFORM_BOUNDARY_ENABLED,
-                false,
-            ),
-            aodGlassEnabled = prefs.getBoolean(
-                ModuleConfigKeys.AOD_GLASS_ENABLED,
-                false,
-            ),
-            superWallpaperDepthEnabled = prefs.getBoolean(
-                ModuleConfigKeys.SUPER_WALLPAPER_DEPTH_ENABLED,
-                false,
-            ),
+        val config = HookConfig(
+            securityMarginPx = runCatching {
+                normalizeSecurityMargin(prefs.getInt(
+                    ModuleConfigKeys.SECURITY_MARGIN,
+                    ModuleConfigKeys.DEFAULT_MARGIN,
+                ))
+            }.getOrDefault(ModuleConfigKeys.DEFAULT_MARGIN),
+            freeformBoundaryEnabled = runCatching {
+                prefs.getBoolean(ModuleConfigKeys.FREEFORM_BOUNDARY_ENABLED, false)
+            }.getOrDefault(false),
+            aodGlassEnabled = runCatching {
+                prefs.getBoolean(ModuleConfigKeys.AOD_GLASS_ENABLED, false)
+            }.getOrDefault(false),
+            superWallpaperDepthEnabled = runCatching {
+                prefs.getBoolean(ModuleConfigKeys.SUPER_WALLPAPER_DEPTH_ENABLED, false)
+            }.getOrDefault(false),
+            safetyModeEnabled = runCatching {
+                prefs.getBoolean(ModuleConfigKeys.SAFETY_MODE_ENABLED, false)
+            }.getOrDefault(false),
+            safetyModeAutoTriggered = runCatching {
+                prefs.getBoolean(ModuleConfigKeys.SAFETY_MODE_AUTO_TRIGGERED, false)
+            }.getOrDefault(false),
         )
+        logLimited(
+            Log.INFO,
+            "config-read:${currentProcessName.get()}",
+            "Remote config read process=${currentProcessName.get()} " +
+                "glass=${config.aodGlassEnabled} depth=${config.superWallpaperDepthEnabled} " +
+                "safety=${config.safetyModeEnabled} auto=${config.safetyModeAutoTriggered}",
+        )
+        return config
+    }
+
+    private fun isSafetyModeEnabled(): Boolean = runCatching {
+        SafetyModePolicy.isEnabled(getRemotePreferences(ModuleConfigKeys.GROUP))
+    }.getOrElse {
+        // A tracked target with an unavailable preference channel must stay
+        // unhooked. Otherwise a Binder/service failure after bootstrap could
+        // re-enable the crash-causing hook set in an already-running process.
+        SafetyModePolicy.isTrackedProcess(currentProcessName.get().orEmpty())
     }
 
     private fun applySafety(
@@ -853,6 +1492,8 @@ class FreeformHook : XposedModule() {
         val freeformBoundaryEnabled: Boolean = false,
         val aodGlassEnabled: Boolean = false,
         val superWallpaperDepthEnabled: Boolean = false,
+        val safetyModeEnabled: Boolean = false,
+        val safetyModeAutoTriggered: Boolean = false,
     )
 
     private data class HorizontalDragSession(
@@ -876,6 +1517,17 @@ class FreeformHook : XposedModule() {
         private const val PACKAGE_MI_WALLPAPER = "com.miui.miwallpaper"
         private const val MAX_LOGS_PER_KEY = 3
         private const val MAX_DIAGNOSTIC_METHODS = 30
+        private const val MAX_DISCOVERY_CLASSES = 160
+        private val DISCOVERY_NAME_PARTS = setOf(
+            "superwallpaper",
+            "snowmountain",
+            "renderer",
+            "render",
+            "engine",
+            "texture",
+            "frame",
+            "filament",
+        )
         private const val ACTION_MODE_UP = 1
         private val FREEFORM_ACTIONS = setOf(
             HookAction.DISABLE_BOOLEAN,

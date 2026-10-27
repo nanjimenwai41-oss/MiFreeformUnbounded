@@ -4,6 +4,184 @@
 
 ## 中文
 
+### v3.0.2-beta.1 · 预发布
+- 完成 HyperOS 4 超级壁纸景深、前景遮挡与玻璃时钟适配，改善动态帧传输的流畅度和锁屏转入 AOD 时的时钟遮罩衔接。
+- 增加九个静态作用域的单项及一键重启，并补齐设备诊断导出与保护逻辑。
+
+### v3.0.2-ci.77 · 内部测试
+- 在 OS4 已反汇编确认的锁屏到 AOD 联动入口执行前重新核实超级壁纸并保留最后有效时钟遮罩，并用生命周期代际阻止晚到的旧清理任务抹掉新帧；尚待真机多次转场验证。
+
+### v3.0.2-ci.73 · 内部测试
+- 按 OS4 实际 DEX 的调用顺序，在有效前景帧成功提交到原厂 Surface 后补充检查并恢复被父方法隐藏的锁屏前景容器；沿用已有的前景帧不早于景深锚点判定，增加恢复结果与状态门诊断。尚待真机验证。
+
+### v3.0.2-ci.71 · 内部测试
+- 根据 HyperOS 4 实际 DEX 的调用顺序，在系统完成锁屏前景父容器可见性更新后重新显示有效景深前景，修复子 TextureView 已恢复但父层随后被系统隐藏的回归。
+
+### v3.0.2-ci.70 · 内部测试
+- 在恢复山体前景层前增加 OS4 实际使用的 `PowerManager.isInteractive()` 状态门，保留锁屏遮挡修复并避免屏幕进入 Dozing/AOD 时强行显示前景。
+
+### v3.0.2-ci.69 · 内部测试
+- 修复系统可见性刷新将真实前景纹理重新隐藏的问题；仅在同帧景深/前景有效、锁屏显示且超级壁纸可见时重新启用遮挡层，其他状态跟随系统层级。
+
+### v3.0.2-ci.68 · 内部测试
+- 前景帧传输复用线程局部像素缓冲，移除每帧整图 Bitmap 克隆；颜色与深度统一采用最近采样，并实际剔除近黑异常像素，针对前景卡顿、轮廓错位和黑色伪影继续优化。
+
+### v3.0.2-ci.58 · 内部测试
+- SnowMountain 插件加载崩溃定位到 CI57 的 loader GOT 替换后，移除 loader GOT 写入，改为只读记录已反编译确认的 `dlopen`、`dlsym`、`eglGetProcAddress` 槽位。
+
+### v3.0.2-ci.57 · 内部测试
+- 按已确认的设备 GOT relocation 替换 `libFramework.so` 的 `dlopen`、`dlsym`、`eglGetProcAddress` 调用，以追踪真实 loader 路径；该实验导致 SnowMountain `_DoLoadPlugin` 空指针崩溃，CI58 已移除。
+
+### v3.0.2-ci.56 · 内部测试
+- 尝试通过 ByteHook 跟踪 Vulkan `vkGetInstanceProcAddr` / `vkGetDeviceProcAddr`；设备返回的 status 10 且无原函数地址，确认该 PLT 路径未安装有效 hook，CI57 改为基于设备 GOT 证据继续调查。
+
+### v3.0.2-ci.55 · 内部测试
+- 在 SnowMountain renderer 初始化前注册只读 Vulkan `dlsym` 跟踪，记录设备实际解析的 Vulkan API 符号及函数地址，为后续深度附件读回确定真实调用链；原函数参数、返回值和渲染输出保持不变。
+
+### v3.0.2-ci.54 · 内部测试
+- 修复 SnowMountain native 库延迟加载时 camera probe 因已有 ByteHook stub 提前返回、跳过 GOT fallback 的问题；renderer 初始化重试现在会再次解析并安装已验证 relocation。
+
+### v3.0.2-ci.53 · 内部测试
+- 按设备 `libFramework.so` 已确认的唯一 `R_AARCH64_JUMP_SLOT` relocation 增加 GOT patch 回退；不依赖 ShadowHook linker 初始化，记录真实相机 RenderTarget/View 样本并原样调用原函数。
+
+### v3.0.2-ci.52 · 内部测试
+- 将 ShadowHook 从 ByteHook 传递的 1.1.1 升级到官方 2.0.1；官方版本支持 Android API 37，用于修复设备上 `Init linker mod failed` 的初始化失败。
+
+### v3.0.2-ci.51 · 内部测试
+- 在设备 ELF 已确认的 Filament 相机符号上增加 ShadowHook 地址级只读观测回退，保留 ByteHook PLT 探针并记录真实 RenderTarget/View 样本。
+
+### v3.0.2-ci.50 · 内部测试
+- 依据设备 `libFramework.so` 唯一相机 `R_AARCH64_JUMP_SLOT` relocation，改用 SnowMountain 进程内 ByteHook 全 caller 方式捕获实际运行路径，并记录 render 样本。
+
+### v3.0.2-ci.49 · 内部测试
+- 移除 Filament 相机 PLT 探针过窄的 callee 路径限制；继续仅接受 SnowMountain 实际 ELF 调用方，并记录安装状态与 RenderTarget 样本。
+
+### v3.0.2-ci.48 · 内部测试
+- 按 Android APK 内 native library 的实际路径调整相机 PLT 探针，精确限定 `libFramework.so` callee，并记录 ByteHook 返回的安装状态。
+
+### v3.0.2-ci.47 · 内部测试
+- 按 HyperOS 4 设备 ELF 符号与 relocation 结果，将 SnowMountain 相机只读探针改为 ByteHook 精确拦截 `libFramework.so` 的 Filament 相机渲染 PLT 调用，并保留原函数返回值。
+
+### v3.0.2-ci.46 · 内部测试
+- 为 HyperOS 4 SnowMountain 的 Filament 相机增加只读 native 诊断，记录相机是否绑定独立 RenderTarget；Vulkan 渲染期间不调用 GLES，也不改变帧输出。
+
+### v3.0.2-ci.45 · 内部测试
+- 关闭 Snowmountain Vulkan renderer 上无效且会触发 GLES 驱动崩溃的深度探针，保留运行时观察日志。
+
+### v3.0.2-ci.44 · 内部测试
+
+- 在实际 `S1ThreadHooker.threadSwapBuffers(int)` 回调前后只读记录 EGL/GLES context 状态，确认渲染线程的深度读取边界。
+
+### v3.0.2-ci.43 · 内部测试
+
+- 在 Snowmountain renderer 同一 GL 线程每 120 帧诊断一次实际 framebuffer 深度附件；读取结果仍需设备日志验证，不会自动启用未经验证的景深合成。
+
+### v3.0.2-ci.42 · 内部测试
+
+- 适配 HyperOS 4.0.4 AOD 玻璃时钟降级路径，覆盖 `shouldDisableGlassEffect(int, CommonConfig)` 与新版 `computeSupportedClockEffect(CommonConfig, int, Context)` 签名。
+- Snowmountain EGL 深度采集仍未通过真实帧验证；CI43 设备日志显示 ShadowHook 初始化失败，ByteHook 未覆盖应用私有 renderer。
+
+### v3.0.2-ci.36 · 内部测试
+
+- 真实超级壁纸景深帧到达 SystemUI 时，取消此前由 `updateDeductedImageView()` 启动且仍在等待的原厂 `crop_subject` 解析协程，避免旧协程在新 GPU 帧应用后继续触发无效 gate；无真实帧阶段保持原厂路径。
+
+### v3.0.2-ci.35 · 内部测试
+
+- 修正 `KeyguardDepthInteractor.updateDeductedImageView()` 与观察 hook 的规则冲突；真实 GPU 景深帧存在时，将已验证 Bitmap 提交到系统景深视图并跳过仅支持 `crop_subject` 文件的 stock 分支。
+
+### v3.0.2-ci.34 · 内部测试
+
+- 在已验证真实超级壁纸景深帧存在时，直接保护景深设置回写和 `updateDeductedImageView()` 消费入口，避免短暂会话标志变化跳过真实景深状态。
+
+### v3.0.2-ci.33 · 内部测试
+
+- 在设备真实 `KeyguardDepthInteractor.updateDeductedImageView()` 消费入口前后重新写入已验证景深状态，避免异步设置流在实际合成前将 `depthEffectEnableInner` 清零。
+
+### v3.0.2-ci.32 · 内部测试
+
+- 为设备真实 `KeyguardPanelViewController$onViewAttachedToWindow$1` 内部类补充独立 hook profile，确保 `handleValueChanged(int,boolean)` 回写路径实际安装。
+
+### v3.0.2-ci.31 · 内部测试
+
+- 接入设备真实 `KeyguardPanelViewController$onViewAttachedToWindow$1.handleValueChanged(int,boolean)` 回写路径；在已验证超级壁纸景深帧存在时，保护 `depthEffectEnable` 与 `depthEffectEnableInner` 不被设置回调立即清零。
+
+### v3.0.2-ci.30 · 内部测试
+
+- 修复真实 `KeyguardCommonSettingObserver.getDepthEffectEnable()` 未加入方法匹配集合的问题，确保已验证景深帧到达时实际设置源 hook 能安装并维持景深开关。
+
+### v3.0.2-ci.28 · 内部测试
+
+- 真实超级壁纸 EGL 景深帧到达 SystemUI 后，先启用设备实际的 `depthEffectEnableInner`/景深开关，再触发锁屏景深表面重建，避免 HyperOS 收到有效帧后因开关仍为关闭而跳过合成。
+- 仅对已验证的真实景深帧生效，普通壁纸和无有效帧路径保持原始行为。
+
+### v3.0.2-ci.29 · 内部测试
+
+- 接入设备真实 `KeyguardCommonSettingObserver.getDepthEffectEnable()` 设置源；仅在当前超级壁纸已有验证景深帧时恢复景深开关，避免异步设置流再次把锁屏合成关闭。
+
+### v3.0.2-ci.14 · 内部测试
+
+- 修复部分 HyperOS SystemUI 控制器不暴露 `supportSubject/cropSubject` 字段，导致真实 `crop_subject` 已存在却被误判为无景深输入的问题。
+- 仅检查系统已生成的主体输入文件是否存在并保持超级壁纸身份校验，不读取、改写或伪造主体像素。
+
+### v3.0.2-ci.13 · 内部测试
+
+- 修复超级壁纸进入 `updateShowDepthState()` 后仍被系统清除静态主体遮罩景深状态的问题。
+- 仅对已确认存在系统主体输入的超级壁纸恢复 `depthEffectEnable` 与 `depthEffectEnableInner`；普通壁纸、原始主体图、玻璃时钟和真实深度帧校验保持不变。
+
+### v3.0.2-ci.12 · 内部测试
+
+- 按设备实际签名接入 `MiuiKeyguardWallPaperManager.getLastDepthFrameBitmap(Function)` 异步景深回调。
+- 只有已验证的真实超级壁纸深度帧才会回调给 SystemUI；缺少真实帧时继续保留 MIUI 原始请求，避免再次错误抠图。
+
+### v3.0.2-ci.11 · 内部测试
+
+- 对同一 nRender 分别记录进入前和返回后的 GL 上下文状态，验证景深读回的正确时机；进入前诊断默认不发布帧。
+- 根据 ci.10 证据修正诊断结论：返回后已无 EGL context/depth attachment，避免把无效读回误判为平坦景深。
+
+### v3.0.2-ci.10 · 内部测试
+
+- 为真实 OpenGL depth readback 增加独立诊断日志，避免统一 hook 限流隐藏第 30 帧的实际结果。
+- 不改变深度帧验证、普通壁纸、玻璃时钟或错误抠图保护逻辑。
+
+### v3.0.2-ci.9 · 内部测试
+
+- 在雪山超级壁纸的原生渲染线程尝试读取真实 OpenGL depth buffer；只有深度附件存在且数据有有效范围时才发布深度帧。
+- SystemUI 仅消费已验证的雪山深度帧，未读到有效 depth buffer 时保持系统原始景深和普通壁纸路径。
+- 实验 APK 继续通过时间后缀单独导出，标准 APK 不被实验导出覆盖。
+
+### v3.0.2-ci.8 · 内部测试
+
+- 根据当前设备 dex 的真实签名覆盖 `n2.a`、`n2.a$a` 和 `com.xiaomi.utils.JNIUtils`，记录雪山渲染生命周期与 native render 调用。
+- 景深能力、渲染开关、避让矩形和深度参数恢复为系统原始结果；未确认真实深度帧前不再强制开启，避免错误抠图和旧会话残留。
+- native renderer 销毁时清理深度桥接状态；本轮仍未伪造深度帧。
+
+### v3.0.2-ci.7 · 内部测试
+
+- 按当前壁纸元数据严格区分超级壁纸与普通图片/动态壁纸，切换到普通壁纸时立即清理景深会话和桥接状态。
+- 仅在真实深度回调或原生 `subject_mask` 输入就绪时开启景深效果；`updateVideoDepthVisibility` 的景深参数会正确传递为启用。
+- 移除普通渲染帧亮度/边缘伪造深度图的路径，保留原始 Bitmap 与 URI，避免错误抠图。
+
+### v3.0.2-ci.3 · 内部测试
+
+- 增加系统界面、息屏与锁屏编辑、超级壁纸的分别重启和全部静态作用域重启；静态作用域由模块声明管理，不再要求维护 LSPosed 推荐列表。
+
+### v3.0.2-ci.4 · 内部测试
+
+- 将首页重启入口明确拆分为 10 项：系统界面、Editor、MiWallpaper、六个具体超级壁纸，以及一次重启全部目标。
+- 六个超级壁纸改为按独立子包执行 `am force-stop`，覆盖对应的预览进程和实际渲染进程。
+
+### v3.0.2-ci.5 · 内部测试
+
+- 修复超级壁纸景深链错误替换原始 Bitmap 和 `subject_mask`，恢复系统原生抠图输入。
+- 修复 HyperOS 4 填充式 Glass 数字（`fontStyle=22`、`hollowStyle=0`）被识别为普通数字，并在 SystemUI 接收前后恢复 Glass effect 5。
+- 普通动态壁纸景深路径保持系统原结果，不再注册或发布超级壁纸专用深度帧；接口抽象方法也不再尝试 Hook。
+- 本轮未伪造超级壁纸深度帧；日志未证明真实渲染深度帧已可用，真实 Super wallpaper 深度生产链仍需设备端接口确认。
+
+### v3.0.2-ci.6 · 内部测试
+
+- 根据设备日志修复 `mDepthVideoReady=true` 但 `isDepthVideoEnable=false` 的判定，启用超级壁纸已有的原生 `subject_mask` 景深路径。
+- 继续保持原始 Bitmap 和 `subject_mask` URI，不使用伪造渲染帧替代抠图输入，并增加实际参数诊断日志。
+
 ### v3.0.1 · 未发布
 
 - 修复首页状态卡在启用 Monet 时仍固定使用红黄绿的问题，统一跟随动态强调色主色系；关闭 Monet 时保留原有语义色。
@@ -119,6 +297,59 @@
 - 某些设备需要完整重启，而不是仅重启 SystemUI，才能重新加载静态作用域。
 
 ## English
+
+### v3.0.2-beta.1 · Prerelease
+- Complete HyperOS 4 Super-wallpaper depth, foreground occlusion, and glass-clock adaptation; improve frame smoothness and mask continuity during the lockscreen-to-AOD transition.
+- Add individual and all-target restart actions for nine static-scope targets, plus device diagnostics export and safety protections.
+
+### v3.0.2-ci.77 · Internal test
+- Reconfirm the active Super wallpaper and retain the last valid clock mask before the verified OS4 lockscreen-to-AOD linkage starts; lifecycle generations prevent a delayed clear from erasing a newer frame. Repeated device transition and unlock verification is pending.
+
+### v3.0.2-ci.73 · Internal test
+- Add a foreground-parent visibility check after a successful Surface post, following HyperOS 4's verified DEX call order. Preserve the existing current-frame sequence policy and log restoration results and blocked state gates. Device verification is pending.
+
+### v3.0.2-ci.71 · Internal test
+- Reapply the verified depth foreground after HyperOS 4's stock panel visibility update, fixing the case where the parent foreground layer was hidden after its child TextureView had been restored.
+
+### v3.0.2-ci.70 · Internal test
+- Gate the verified foreground layer on the device's actual interactive state, retaining lockscreen occlusion while leaving Dozing/AOD to the stock visibility path.
+
+### v3.0.2-ci.69 · Internal test
+- Reapply the verified foreground texture after stock visibility updates, only while the paired depth/foreground frame and visible Super wallpaper lockscreen are active.
+
+### v3.0.2-ci.58 · Internal test
+- Removed loader GOT writes after CI57's SnowMountain plugin-loader crash and changed the probe to read only the verified `dlopen`, `dlsym`, and `eglGetProcAddress` slots.
+
+### v3.0.2-ci.57 · Internal test
+- Replaced `libFramework.so` `dlopen`, `dlsym`, and `eglGetProcAddress` GOT entries at the verified relocations to trace the loader; this experiment caused a SnowMountain `_DoLoadPlugin` null-pointer crash and was removed in CI58.
+
+### v3.0.2-ci.56 · Internal test
+- Tried ByteHook probes for Vulkan `vkGetInstanceProcAddr` / `vkGetDeviceProcAddr`; device status 10 with no original function confirmed that the PLT hooks were not installed, so CI57 continued from the verified device GOT evidence.
+
+### v3.0.2-ci.55 · Internal test
+
+- Added a read-only Vulkan `dlsym` trace before SnowMountain renderer initialization to record the device's actual Vulkan API lookups and function addresses for the next depth-attachment capture step. Original arguments, return values, and renderer output are unchanged.
+
+### v3.0.2-ci.3 · Internal test
+
+- Added separate restart actions for System UI, AOD/lock-screen editor, and MiWallpaper, plus a restart-all action; static targets are module-managed without an LSPosed recommendation list.
+
+### v3.0.2-ci.4 · Internal test
+
+- Split the Home restart controls into 10 explicit actions: System UI, Editor, MiWallpaper, six concrete Super wallpapers, and one action that restarts every target.
+- Restarting a concrete Super wallpaper now uses `am force-stop` on its own package so its preview and render processes are refreshed together.
+
+### v3.0.2-ci.5 · Internal test
+
+- Fixed the Super-wallpaper depth chain from replacing the original Bitmap and `subject_mask`, restoring the stock segmentation input.
+- Fixed filled HyperOS 4 Glass digits (`fontStyle=22`, `hollowStyle=0`) being classified as ordinary digits, and restore Glass effect 5 before and after the SystemUI receiver call.
+- Ordinary dynamic wallpapers now keep the stock depth result and never register or publish through the Super-wallpaper depth bridge; abstract interface methods are skipped during hook discovery.
+- This build does not fabricate a Super-wallpaper depth frame. The logs do not prove that a real renderer depth frame is available yet, so the real Super-wallpaper depth producer still needs device-side interface confirmation.
+
+### v3.0.2-ci.6 · Internal test
+
+- Fixed the device-reported `mDepthVideoReady=true` but `isDepthVideoEnable=false` state, enabling HyperOS's native Super-wallpaper `subject_mask` depth path.
+- Continue passing through the original Bitmap and `subject_mask` URI, never substituting a fabricated render frame, and add diagnostics for the actual input arguments.
 
 ### v3.0.1 · Unreleased
 

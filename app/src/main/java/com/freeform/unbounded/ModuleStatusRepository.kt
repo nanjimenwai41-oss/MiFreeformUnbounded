@@ -68,19 +68,20 @@ internal object ModuleStatusRepository {
     }
 
     private fun collectStatus(service: XposedService): ModuleStatus {
-        val scopePackages = runCatching { service.getScope() }.getOrDefault(emptyList())
         val targets = runCatching { service.getRunningTargets() }.getOrDefault(emptyList())
         val frameworkName = runCatching { service.frameworkName }.getOrDefault("")
         val frameworkVersion = runCatching { service.frameworkVersion }.getOrDefault("")
-        val scopeEnabled = REQUIRED_SCOPE.all(scopePackages::contains)
+        // staticScope=true and module.prop own the target list. There is no
+        // user-maintained LSPosed recommendation scope to validate here.
+        val scopeEnabled = true
         val currentTargets = targets.filter { target ->
             target.processName in REQUIRED_TARGETS ||
                 target.processName.contains("systemui", ignoreCase = true) ||
                 target.processName.contains("miui.aod", ignoreCase = true) ||
                 target.processName.contains("miwallpaper", ignoreCase = true)
         }
-        val active = scopeEnabled && currentTargets.any { it.state == HookedTarget.State.UP_TO_DATE }
-        val pendingRestart = scopeEnabled && !active
+        val active = currentTargets.any { it.state == HookedTarget.State.UP_TO_DATE }
+        val pendingRestart = !active
         return ModuleStatus(
             checking = false,
             active = active,
@@ -90,14 +91,12 @@ internal object ModuleStatusRepository {
             frameworkVersion = frameworkVersion,
             targets = targets.map { "${it.processName} · ${it.state}" },
             message = when {
-                !scopeEnabled -> "缺少 SystemUI、AOD 或 MiWallpaper 作用域"
-                pendingRestart -> "模块已安装，重启系统或相关目标进程后生效"
+                pendingRestart -> "模块已安装，静态作用域由模块管理；请重启对应目标进程"
                 active -> "模块已由 $frameworkName 加载并运行"
                 else -> "等待目标进程加载模块"
             },
         )
     }
 
-    private val REQUIRED_SCOPE = setOf("com.android.systemui", "com.miui.aod", "com.miui.miwallpaper")
     private val REQUIRED_TARGETS = setOf("com.android.systemui", "com.miui.aod", "com.miui.miwallpaper")
 }

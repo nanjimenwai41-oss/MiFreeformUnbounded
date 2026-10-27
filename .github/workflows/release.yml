@@ -35,6 +35,12 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Set up Android NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK r27b
+        run: sdkmanager "ndk;27.1.12297006"
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
@@ -48,7 +54,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          release_flags=()
+          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
+            release_flags+=(--prerelease)
+          fi
           gh release create "${GITHUB_REF_NAME}" \
             app/build/outputs/apk/release/app-release.apk \
             --title "MiFreeformUnbounded ${GITHUB_REF_NAME}" \
-            --generate-notes
+            --generate-notes \
+            "${release_flags[@]}"

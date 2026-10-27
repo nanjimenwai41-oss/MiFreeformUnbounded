@@ -126,11 +126,35 @@ internal fun HomeScreen(
                         onRestartAod = {
                             scope.launch { SystemUiRestarter.restartAod(context) }
                         },
+                        onRestartMiWallpaper = {
+                            scope.launch { SystemUiRestarter.restartMiWallpaper(context) }
+                        },
+                        onRestartMoon = {
+                            scope.launch { SystemUiRestarter.restartMoon(context) }
+                        },
+                        onRestartSnowMountain = {
+                            scope.launch { SystemUiRestarter.restartSnowMountain(context) }
+                        },
+                        onRestartGeometry = {
+                            scope.launch { SystemUiRestarter.restartGeometry(context) }
+                        },
+                        onRestartSaturn = {
+                            scope.launch { SystemUiRestarter.restartSaturn(context) }
+                        },
+                        onRestartEarth = {
+                            scope.launch { SystemUiRestarter.restartEarth(context) }
+                        },
+                        onRestartMars = {
+                            scope.launch { SystemUiRestarter.restartMars(context) }
+                        },
+                        onRestartAll = {
+                            scope.launch { SystemUiRestarter.restartAll(context) }
+                        },
                         diagnosticsStatus = diagnosticsStatus,
                         exportingDiagnostics = exportingDiagnostics,
                         onExportDiagnostics = {
                             exportingDiagnostics = true
-                            diagnosticsStatus = "正在读取系统景深日志"
+                            diagnosticsStatus = "正在生成完整设备证据包"
                             scope.launch {
                                 PhoneDiagnosticsExporter.export(context).onSuccess { file ->
                                     val intent = Intent(Intent.ACTION_SEND).apply {
@@ -380,6 +404,14 @@ private fun RuntimeCard(
     config: com.freeform.unbounded.AppConfig,
     onRestartSystemUi: () -> Unit,
     onRestartAod: () -> Unit,
+    onRestartMiWallpaper: () -> Unit,
+    onRestartMoon: () -> Unit,
+    onRestartSnowMountain: () -> Unit,
+    onRestartGeometry: () -> Unit,
+    onRestartSaturn: () -> Unit,
+    onRestartEarth: () -> Unit,
+    onRestartMars: () -> Unit,
+    onRestartAll: () -> Unit,
     diagnosticsStatus: String?,
     exportingDiagnostics: Boolean,
     onExportDiagnostics: () -> Unit,
@@ -387,7 +419,7 @@ private fun RuntimeCard(
     Card(modifier = Modifier.fillMaxWidth()) {
         BasicComponent(
             title = "导出景深诊断日志",
-            summary = diagnosticsStatus ?: "一键读取 LSPosed、SystemUI 与 MiWallpaper 日志\n需要 ROOT 权限",
+            summary = diagnosticsStatus ?: "一键导出完整设备信息、全部 logcat 缓冲区与关键服务状态\n需要 ROOT 权限",
             endActions = {
                 TextButton(
                     text = if (exportingDiagnostics) "读取中" else "导出",
@@ -398,7 +430,7 @@ private fun RuntimeCard(
             },
         )
         BasicComponent(
-            title = "重启系统界面",
+            title = "1. 重启系统界面",
             summary = "刷新自由小窗功能\n需要 ROOT 权限",
             endActions = {
                 TextButton(
@@ -409,12 +441,100 @@ private fun RuntimeCard(
             },
         )
         BasicComponent(
-            title = "重启息屏与锁屏编辑",
+            title = "2. 重启 Editor",
             summary = "刷新锁屏玻璃时钟功能\n需要 ROOT 权限",
             endActions = {
                 TextButton(
                     text = "重启",
                     onClick = onRestartAod,
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
+            },
+        )
+        BasicComponent(
+            title = "3. 重启 MiWallpaper",
+            summary = "刷新 MiWallpaper 总服务\n需要 ROOT 权限",
+            endActions = {
+                TextButton(
+                    text = "重启",
+                    onClick = onRestartMiWallpaper,
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
+            },
+        )
+        BasicComponent(
+            title = "4. 重启月球超级壁纸",
+            summary = "仅刷新月球超级壁纸实例\n需要 ROOT 权限",
+            endActions = {
+                TextButton(
+                    text = "重启",
+                    onClick = onRestartMoon,
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
+            },
+        )
+        BasicComponent(
+            title = "5. 重启雪山超级壁纸",
+            summary = "仅刷新雪山超级壁纸实例\n需要 ROOT 权限",
+            endActions = {
+                TextButton(
+                    text = "重启",
+                    onClick = onRestartSnowMountain,
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
+            },
+        )
+        BasicComponent(
+            title = "6. 重启几何超级壁纸",
+            summary = "仅刷新几何超级壁纸实例\n需要 ROOT 权限",
+            endActions = {
+                TextButton(
+                    text = "重启",
+                    onClick = onRestartGeometry,
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
+            },
+        )
+        BasicComponent(
+            title = "7. 重启土星超级壁纸",
+            summary = "仅刷新土星超级壁纸实例\n需要 ROOT 权限",
+            endActions = {
+                TextButton(
+                    text = "重启",
+                    onClick = onRestartSaturn,
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
+            },
+        )
+        BasicComponent(
+            title = "8. 重启地球超级壁纸",
+            summary = "仅刷新地球超级壁纸实例\n需要 ROOT 权限",
+            endActions = {
+                TextButton(
+                    text = "重启",
+                    onClick = onRestartEarth,
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
+            },
+        )
+        BasicComponent(
+            title = "9. 重启火星超级壁纸",
+            summary = "仅刷新火星超级壁纸实例\n需要 ROOT 权限",
+            endActions = {
+                TextButton(
+                    text = "重启",
+                    onClick = onRestartMars,
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
+            },
+        )
+        BasicComponent(
+            title = "10. 重启全部静态作用域",
+            summary = "依次重启系统界面、Editor、MiWallpaper 和六个超级壁纸\n需要 ROOT 权限",
+            endActions = {
+                TextButton(
+                    text = "全部重启",
+                    onClick = onRestartAll,
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                 )
             },

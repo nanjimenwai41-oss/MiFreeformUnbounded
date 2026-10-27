@@ -5,6 +5,7 @@ plugins {
 
 android {
     namespace = "com.freeform.unbounded"
+    ndkVersion = "27.1.12297006"
     compileSdk {
         version = release(37) {
             minorApiLevel = 0
@@ -15,8 +16,18 @@ android {
         applicationId = "com.freeform.unbounded"
         minSdk = 31
         targetSdk = 37
-        versionCode = 20260902
-        versionName = "3.0.1"
+        versionCode = 20261078
+        versionName = "3.0.2-beta.1"
+
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
+
+        externalNativeBuild {
+            ndkBuild {
+                arguments += "NDK_APPLICATION_MK=${project.file("src/main/cpp/Application.mk").absolutePath}"
+            }
+        }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -70,8 +81,19 @@ android {
         buildConfig = false
     }
     packaging {
+        jniLibs {
+            // LSPosed injects this module into other package processes. Keep
+            // the native hook libraries as real files in nativeLibraryDir so
+            // the injected class loader can load them by absolute path.
+            useLegacyPackaging = true
+        }
         resources {
             merges += "META-INF/xposed/*"
+        }
+    }
+    externalNativeBuild {
+        ndkBuild {
+            path = file("src/main/cpp/Android.mk")
         }
     }
     lint {
@@ -83,6 +105,8 @@ android {
 dependencies {
     compileOnly(libs.xposed.api)
     implementation(libs.xposed.service)
+    implementation("com.bytedance:bytehook:1.1.1")
+    implementation("com.bytedance.android:shadowhook:2.0.1")
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation3.runtime)

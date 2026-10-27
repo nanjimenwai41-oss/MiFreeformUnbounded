@@ -29,7 +29,9 @@ internal data class VideoDepthSessionSnapshot(
  * A short-lived per-controller session. It deliberately does not change global
  * wallpaper settings or identity; callers must explicitly establish/invalidate it.
  */
-internal class VideoWallpaperCompatibilitySession {
+internal class VideoWallpaperCompatibilitySession(
+    private val generationSource: (() -> Long)? = null,
+) {
     private var generation = 0L
     private var originalKind = WallpaperKind.UNKNOWN
     private var compatibilityKind = WallpaperKind.UNKNOWN
@@ -41,12 +43,21 @@ internal class VideoWallpaperCompatibilitySession {
     private var avoidRect: Rect? = null
 
     @Synchronized
-    fun establish(kind: WallpaperKind, depthEnabled: Boolean, input: VideoDepthInput? = null): Long {
-        generation++
+    fun establish(
+        kind: WallpaperKind,
+        depthEnabled: Boolean,
+        framePathReady: Boolean = false,
+        input: VideoDepthInput? = null,
+    ): Long {
+        generation = generationSource?.invoke() ?: generation + 1
         originalKind = kind
-        compatibilityKind = if (kind == WallpaperKind.SUPER && depthEnabled) WallpaperKind.VIDEO else kind
-        depthSupported = compatibilityKind == WallpaperKind.VIDEO && depthEnabled
-        videoRenderingAllowed = depthSupported
+        // A Super wallpaper is not a video-depth wallpaper until a real frame
+        // producer and renderer have been identified. Do not manufacture a
+        // VIDEO session from the wallpaper identity alone.
+        val videoCompatible = kind == WallpaperKind.SUPER && depthEnabled && framePathReady
+        compatibilityKind = if (videoCompatible) WallpaperKind.VIDEO else kind
+        depthSupported = videoCompatible
+        videoRenderingAllowed = videoCompatible
         initialized = false
         this.input = input
         bounds = null
@@ -56,7 +67,7 @@ internal class VideoWallpaperCompatibilitySession {
 
     @Synchronized
     fun invalidate() {
-        generation++
+        generation = generationSource?.invoke() ?: generation + 1
         originalKind = WallpaperKind.UNKNOWN
         compatibilityKind = WallpaperKind.UNKNOWN
         depthSupported = false

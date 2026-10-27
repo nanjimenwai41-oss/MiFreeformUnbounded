@@ -4,6 +4,18 @@
 
     <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur" />
 
+    <!-- 帧 Provider 按真实调用 UID 校验，显式声明所需包的可见性。 -->
+    <queries>
+        <package android:name="com.android.systemui" />
+        <package android:name="com.miui.miwallpaper" />
+        <package android:name="com.miui.miwallpaper.moon" />
+        <package android:name="com.miui.miwallpaper.snowmountain" />
+        <package android:name="com.miui.miwallpaper.geometry" />
+        <package android:name="com.miui.miwallpaper.saturn" />
+        <package android:name="com.miui.miwallpaper.earth" />
+        <package android:name="com.miui.miwallpaper.mars" />
+    </queries>
+
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
@@ -21,6 +33,11 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/diagnostic_paths" />
         </provider>
+        <provider
+            android:name=".DepthFrameContentProvider"
+            android:authorities="${applicationId}.depth-frames"
+            android:exported="true"
+            android:grantUriPermissions="true" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

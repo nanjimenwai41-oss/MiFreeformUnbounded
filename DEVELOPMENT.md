@@ -12,7 +12,9 @@
 
 ## 版本和发布
 
-版本遵循 Semantic Versioning：修复使用 PATCH，兼容功能使用 MINOR，不兼容变更使用 MAJOR。版本号必须同时更新以下三个位置，并通过脚本校验：
+版本遵循 Semantic Versioning：修复使用 PATCH，兼容功能使用 MINOR，不兼容变更使用 MAJOR。内部测试使用预发布标识，例如 `3.0.2-ci.1`、`3.0.2-beta.1` 或 `3.0.2-rc.1`；正式发布才使用不带后缀的 `3.0.2`。每个可安装 APK 都必须递增 `versionCode`，不能用同一个版本号覆盖不同实验。当前采用 `YYYYMMDD` 的低位日期序列，例如 `20261001`；同一天的后续实验使用 `20261002`、`20261003`，不把过长的时间戳直接塞进 Android 整数版本号。
+
+版本号必须同时更新以下三个位置，并通过脚本校验：
 
 - `app/build.gradle.kts` 的 `versionName` 和 `versionCode`；
 - `app/src/main/java/com/freeform/unbounded/BuildConfig.kt`；
@@ -23,16 +25,19 @@
 ```powershell
 python .\tools\verify-version.py
 .\gradlew.bat :app\testDebugUnitTest :app\lintRelease :app\assembleRelease --no-daemon --console=plain
+powershell -ExecutionPolicy Bypass -File .\tools\export-experiment.ps1 -Label super-depth-glass
 ```
 
-更新中英文 `CHANGELOG.md`，确认工作区干净，然后创建并推送带注释的版本标签：
+Gradle 的标准产物仍保留在 `app/build/outputs/apk/release/app-release.apk`。实验导出脚本只复制该文件，在 `experiments/<时间戳>-<标签>/` 生成带时间戳的 APK、SHA-256 和版本清单，不移动或删除标准产物。
+
+更新中英文 `CHANGELOG.md` 和 README。预发布标签（例如 `v3.0.2-beta.1`）会生成 GitHub Pre-release；不带后缀的正式版本标签（例如 `v3.0.2`）会生成稳定版 Release。确认工作区干净，然后创建并推送带注释的版本标签：
 
 ```powershell
-git tag -a v3.1.0 -m "Release v3.1.0"
-git push origin v3.1.0
+git tag -a v3.0.2-beta.1 -m "Pre-release v3.0.2-beta.1"
+git push origin v3.0.2-beta.1
 ```
 
-推送 `vX.Y.Z` 标签后，GitHub Actions 会从该标签构建 Release APK，并创建同名 GitHub Release。不要手动上传 Debug APK，也不要修改已经发布的标签或 Release；需要修复时递增版本并创建新标签。
+推送版本标签后，GitHub Actions 会从该标签构建 Release APK，并按版本后缀标记为 Pre-release 或稳定版 Release。不要手动上传 Debug APK，也不要修改已经发布的标签或 Release；需要修复时递增版本并创建新标签。
 
 ## 签名注意事项
 

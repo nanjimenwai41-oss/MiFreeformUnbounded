@@ -9,6 +9,15 @@ internal object GlassBypassPolicy {
     private const val GLASS_EFFECT_ID = 5
     private const val ALL_IN_ONE_TEMPLATE = "all_in_one"
     private val STATIC_RESOURCE_TYPES = setOf("image", "gallery")
+    // These all-in-one style/font pairs are present in the inspected AOD
+    // preset_clock_template_config.json.  The runtime Glass marker fields
+    // below distinguish them from ordinary clocks; keeping this list complete
+    // prevents a valid preset from losing its Glass digits after a rebind.
+    // The current device dump directly identifies this as the Glass clock:
+    // style=5, fontStyle=22, hollowStyle=0, glassTransparency=0.15. Preset
+    // membership alone is not enough to classify another all-in-one clock as
+    // Glass, so unknown style/font pairs remain on the stock path.
+    private val GLASS_STYLE_FONT_PAIRS = setOf(5 to 22)
 
     fun shouldOverride(
         effectId: Int,
@@ -52,7 +61,11 @@ internal object GlassBypassPolicy {
      */
     fun shouldRestoreSystemUiGlass(controller: Any?, clockBean: Any?): Boolean {
         if (!isGlassDowngrade(clockBean)) return false
-        return (controller.invokeNoArg("isWallpaperSupportDepth") as? Boolean) == true
+        // The settings reload path can downgrade the bean before the wallpaper
+        // controller has rebuilt its depth state. The Glass marker set is the
+        // narrower signal here; requiring depth made direct Glass-font use fail
+        // during that normal rebind window.
+        return controller != null
     }
 
     /**
@@ -74,7 +87,12 @@ internal object GlassBypassPolicy {
         val hollowStyle = (clockBean.invokeNoArg("getHollowStyle") as? Number)?.toInt() ?: return false
         val transparency = (clockBean.invokeNoArg("getGlassTransparency") as? Number)?.toFloat()
             ?: return false
-        if (style != 5 || fontStyle != 24 || hollowStyle != 1 || transparency > 0.05f) return false
+        // The wallpaper switch in the field log downgraded only clockEffect
+        // to 1 and retained these Glass markers. Presets use hollowStyle=1;
+        // keep 0 for the filled runtime variant.
+        if ((style to fontStyle) !in GLASS_STYLE_FONT_PAIRS || hollowStyle !in setOf(0, 1) ||
+            !transparency.isFinite() || transparency !in 0f..0.2f
+        ) return false
         return true
     }
 
