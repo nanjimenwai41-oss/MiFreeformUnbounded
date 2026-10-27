@@ -4,8 +4,8 @@
 
 面向 HyperOS 3/4 的自由窗口边界与锁屏玻璃时钟模块。项目使用 Kotlin、Jetpack Compose、MIUIX 和 Modern LibXposed API 102，改善自由窗口拖动体验，并在不支持玻璃时钟的场景下强制使用锁屏玻璃时钟。
 
-> 最新预发布：**v3.0.2-beta.1**（版本号：**20261078**）；当前正式版：**v3.0.0**。
-> [下载 v3.0.2-beta.1](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.2-beta.1) · [下载正式版 v3.0.0](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0) · [查看更新日志](CHANGELOG.md)
+> 最新预发布：**v3.0.2-beta.2**（版本号：**20261079**）；当前正式版：**v3.0.0**。
+> [下载 v3.0.2-beta.2](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.2-beta.2) · [下载正式版 v3.0.0](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0) · [查看更新日志](CHANGELOG.md)
 
 ## 主要功能
 
@@ -39,7 +39,7 @@
 
 ## 安装与启用
 
-1. 从 [v3.0.2-beta.1 预发布](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.2-beta.1) 下载 APK，或选择 [v3.0.0 正式版](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0)。
+1. 从 [v3.0.2-beta.2 预发布](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.2-beta.2) 下载 APK，或选择 [v3.0.0 正式版](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0)。
 2. 使用支持 Modern LibXposed API 102 的模块管理器安装 APK。
 3. 本模块使用固定静态作用域，目标由模块声明自动管理，不需要在 LSPosed 中维护推荐应用列表。
 4. 重启设备，或在首页按需重启系统界面、Editor、MiWallpaper、六个具体超级壁纸，亦可一键重启全部静态作用域。

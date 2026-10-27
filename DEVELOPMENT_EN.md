@@ -33,8 +33,8 @@ The standard Gradle APK remains at `app/build/outputs/apk/release/app-release.ap
 Update both language sections of `CHANGELOG.md` and the READMEs. A prerelease tag (for example, `v3.0.2-beta.1`) creates a GitHub Pre-release; a stable version tag without a suffix (for example, `v3.0.2`) creates a stable Release. Confirm a clean worktree, then create and push an annotated version tag:
 
 ```powershell
-git tag -a v3.0.2-beta.1 -m "Pre-release v3.0.2-beta.1"
-git push origin v3.0.2-beta.1
+git tag -a v3.0.2-beta.2 -m "Pre-release v3.0.2-beta.2"
+git push origin v3.0.2-beta.2
 ```
 
 Pushing a version tag makes GitHub Actions build the Release APK from that tag and mark it as a prerelease or stable release based on its suffix. Do not upload a Debug APK manually or replace an already published tag or Release; increment the version and publish a new tag for fixes.

@@ -16,8 +16,8 @@ android {
         applicationId = "com.freeform.unbounded"
         minSdk = 31
         targetSdk = 37
-        versionCode = 20261078
-        versionName = "3.0.2-beta.1"
+        versionCode = 20261079
+        versionName = "3.0.2-beta.2"
 
         ndk {
             abiFilters += "arm64-v8a"

@@ -33,8 +33,8 @@ Gradle 的标准产物仍保留在 `app/build/outputs/apk/release/app-release.ap
 更新中英文 `CHANGELOG.md` 和 README。预发布标签（例如 `v3.0.2-beta.1`）会生成 GitHub Pre-release；不带后缀的正式版本标签（例如 `v3.0.2`）会生成稳定版 Release。确认工作区干净，然后创建并推送带注释的版本标签：
 
 ```powershell
-git tag -a v3.0.2-beta.1 -m "Pre-release v3.0.2-beta.1"
-git push origin v3.0.2-beta.1
+git tag -a v3.0.2-beta.2 -m "Pre-release v3.0.2-beta.2"
+git push origin v3.0.2-beta.2
 ```
 
 推送版本标签后，GitHub Actions 会从该标签构建 Release APK，并按版本后缀标记为 Pre-release 或稳定版 Release。不要手动上传 Debug APK，也不要修改已经发布的标签或 Release；需要修复时递增版本并创建新标签。

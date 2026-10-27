@@ -4,8 +4,8 @@
 
 A freeform-window boundary and lock-screen glass-clock module for HyperOS 3/4. It is built with Kotlin, Jetpack Compose, MIUIX, and Modern LibXposed API 102. It improves freeform-window movement and forces the lock-screen glass clock in scenes where the stock editor does not support it.
 
-> Latest prerelease: **v3.0.2-beta.1** (version code: **20261078**); current stable release: **v3.0.0**.
-> [Download v3.0.2-beta.1](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.2-beta.1) · [Download stable v3.0.0](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0) · [Read the changelog](CHANGELOG.md)
+> Latest prerelease: **v3.0.2-beta.2** (version code: **20261079**); current stable release: **v3.0.0**.
+> [Download v3.0.2-beta.2](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.2-beta.2) · [Download stable v3.0.0](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0) · [Read the changelog](CHANGELOG.md)
 
 ## Features
 
@@ -38,7 +38,7 @@ HyperOS minor releases may rename classes or change method signatures. The modul
 
 ## Installation
 
-1. Download the APK from the [v3.0.2-beta.1 prerelease](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.2-beta.1), or choose the [v3.0.0 stable release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0).
+1. Download the APK from the [v3.0.2-beta.2 prerelease](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.2-beta.2), or choose the [v3.0.0 stable release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0).
 2. Install it with a module manager that supports Modern LibXposed API 102.
 3. The module uses a fixed static scope whose targets are declared by the module; no recommended-app list needs to be maintained in LSPosed.
 4. Reboot the device, or use the Home actions to restart System UI, Editor, MiWallpaper, any of the six concrete Super wallpapers, or all static scopes.

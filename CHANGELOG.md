@@ -4,6 +4,9 @@
 
 ## 中文
 
+### v3.0.2-beta.2 · 预发布
+- 保持 beta.1 的 HyperOS 4 景深、前景遮挡、玻璃时钟与 AOD 转场适配，并修正 GitHub Actions 的 NDK 发布构建配置。
+
 ### v3.0.2-beta.1 · 预发布
 - 完成 HyperOS 4 超级壁纸景深、前景遮挡与玻璃时钟适配，改善动态帧传输的流畅度和锁屏转入 AOD 时的时钟遮罩衔接。
 - 增加九个静态作用域的单项及一键重启，并补齐设备诊断导出与保护逻辑。
@@ -297,6 +300,9 @@
 - 某些设备需要完整重启，而不是仅重启 SystemUI，才能重新加载静态作用域。
 
 ## English
+
+### v3.0.2-beta.2 · Prerelease
+- Keep the HyperOS 4 depth, foreground occlusion, glass-clock, and AOD-transition adaptation from beta.1, and fix the GitHub Actions NDK release-build configuration.
 
 ### v3.0.2-beta.1 · Prerelease
 - Complete HyperOS 4 Super-wallpaper depth, foreground occlusion, and glass-clock adaptation; improve frame smoothness and mask continuity during the lockscreen-to-AOD transition.

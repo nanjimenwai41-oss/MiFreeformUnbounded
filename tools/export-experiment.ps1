@@ -28,8 +28,8 @@ $versionName = Read-Version $gradlePath 'versionName\s*=\s*"([^\"]+)"' "versionN
 $versionCode = Read-Version $gradlePath 'versionCode\s*=\s*(\d+)' "versionCode"
 $buildConfigName = Read-Version $buildConfigPath 'VERSION_NAME:\s*String\s*=\s*"([^\"]+)"' "BuildConfig VERSION_NAME"
 $buildConfigCode = Read-Version $buildConfigPath 'VERSION_CODE:\s*Int\s*=\s*(\d+)' "BuildConfig VERSION_CODE"
-$moduleName = Read-Version $modulePropPath '(?m)^version=v([^\r\n]+)$' "module.prop version"
-$moduleCode = Read-Version $modulePropPath '(?m)^versionCode=(\d+)$' "module.prop versionCode"
+$moduleName = Read-Version $modulePropPath '(?m)^version=v([^\r\n]+)\r?$' "module.prop version"
+$moduleCode = Read-Version $modulePropPath '(?m)^versionCode=(\d+)\r?$' "module.prop versionCode"
 
 if ($versionName -ne $buildConfigName -or $versionName -ne $moduleName -or
     $versionCode -ne $buildConfigCode -or $versionCode -ne $moduleCode) {
