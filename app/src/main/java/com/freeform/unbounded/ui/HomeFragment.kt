@@ -15,15 +15,25 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Android
 import androidx.compose.material.icons.rounded.CheckCircleOutline
+import androidx.compose.material.icons.rounded.DeveloperBoard
 import androidx.compose.material.icons.rounded.HighlightOff
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.Security
+import androidx.compose.material.icons.rounded.Smartphone
+import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.RemoveCircleOutline
+import androidx.compose.material.icons.rounded.HourglassTop
+import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -31,46 +41,58 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import com.freeform.unbounded.BuildConfig
 import com.freeform.unbounded.ConfigRepository
 import com.freeform.unbounded.ModuleStatus
 import com.freeform.unbounded.ModuleStatusRepository
 import com.freeform.unbounded.PhoneDiagnosticsExporter
 import com.freeform.unbounded.SystemUiRestarter
-import com.freeform.unbounded.ui.theme.HyperGreenContainerDark
-import com.freeform.unbounded.ui.theme.HyperGreenContainerLight
 import com.freeform.unbounded.ui.theme.HyperRed
 import com.freeform.unbounded.ui.theme.HyperRedContainerDark
 import com.freeform.unbounded.ui.theme.HyperRedContainerLight
 import com.freeform.unbounded.ui.theme.isInDarkTheme
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.DropdownImpl
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.ListPopupDefaults
+import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
-import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @Composable
 internal fun HomeScreen(
     enableBlur: Boolean,
-    floatingBottomBar: Boolean,
+    contentBottomPadding: Dp,
     monetEnabled: Boolean,
 ) {
     val status by ModuleStatusRepository.status.collectAsState()
@@ -79,14 +101,11 @@ internal fun HomeScreen(
     val scope = rememberCoroutineScope()
     var diagnosticsStatus by remember { mutableStateOf<String?>(null) }
     var exportingDiagnostics by remember { mutableStateOf(false) }
+    var showRestartMenu by rememberSaveable { mutableStateOf(false) }
+    val scrollBehavior = MiuixScrollBehavior()
     val blurBackdrop = rememberBlurBackdrop(enableBlur)
     val barColor = if (blurBackdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface
-    val navigationBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val contentBottomPadding = if (floatingBottomBar) {
-        104.dp + navigationBottomInset
-    } else {
-        32.dp + navigationBottomInset
-    }
+
     Scaffold(
         topBar = {
             BlurredBar(blurBackdrop) {
@@ -94,6 +113,23 @@ internal fun HomeScreen(
                     color = barColor,
                     title = "首页",
                     largeTitle = "Freeform Unbounded",
+                    scrollBehavior = scrollBehavior,
+                    actions = {
+                        RestartTargetsPopup(
+                            show = showRestartMenu,
+                            onShowChange = { showRestartMenu = it },
+                            onRestartSystemUi = { scope.launch { SystemUiRestarter.restartSystemUi(context) } },
+                            onRestartAod = { scope.launch { SystemUiRestarter.restartAod(context) } },
+                            onRestartMiWallpaper = { scope.launch { SystemUiRestarter.restartMiWallpaper(context) } },
+                            onRestartMoon = { scope.launch { SystemUiRestarter.restartMoon(context) } },
+                            onRestartSnowMountain = { scope.launch { SystemUiRestarter.restartSnowMountain(context) } },
+                            onRestartGeometry = { scope.launch { SystemUiRestarter.restartGeometry(context) } },
+                            onRestartSaturn = { scope.launch { SystemUiRestarter.restartSaturn(context) } },
+                            onRestartEarth = { scope.launch { SystemUiRestarter.restartEarth(context) } },
+                            onRestartMars = { scope.launch { SystemUiRestarter.restartMars(context) } },
+                            onRestartAll = { scope.launch { SystemUiRestarter.restartAll(context) } },
+                        )
+                    },
                 )
             }
         },
@@ -102,71 +138,69 @@ internal fun HomeScreen(
             modifier = if (blurBackdrop != null) Modifier.layerBackdrop(blurBackdrop) else Modifier,
         ) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().scrollEndHaptic().overScrollVertical()
+                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                overscrollEffect = null,
                 contentPadding = PaddingValues(
-                    start = 16.dp,
+                    start = 12.dp,
                     top = padding.calculateTopPadding() + 8.dp,
-                    end = 16.dp,
+                    end = 12.dp,
                     bottom = contentBottomPadding,
                 ),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item {
                     KernelStyleStatusCard(
                         status = status,
                         monetEnabled = monetEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
+                        safetyMode = config.safetyModeEnabled,
                     )
                 }
                 item {
-                    RuntimeCard(
-                        config = config,
-                        onRestartSystemUi = {
-                            scope.launch { SystemUiRestarter.restartSystemUi(context) }
-                        },
-                        onRestartAod = {
-                            scope.launch { SystemUiRestarter.restartAod(context) }
-                        },
-                        onRestartMiWallpaper = {
-                            scope.launch { SystemUiRestarter.restartMiWallpaper(context) }
-                        },
-                        onRestartMoon = {
-                            scope.launch { SystemUiRestarter.restartMoon(context) }
-                        },
-                        onRestartSnowMountain = {
-                            scope.launch { SystemUiRestarter.restartSnowMountain(context) }
-                        },
-                        onRestartGeometry = {
-                            scope.launch { SystemUiRestarter.restartGeometry(context) }
-                        },
-                        onRestartSaturn = {
-                            scope.launch { SystemUiRestarter.restartSaturn(context) }
-                        },
-                        onRestartEarth = {
-                            scope.launch { SystemUiRestarter.restartEarth(context) }
-                        },
-                        onRestartMars = {
-                            scope.launch { SystemUiRestarter.restartMars(context) }
-                        },
-                        onRestartAll = {
-                            scope.launch { SystemUiRestarter.restartAll(context) }
-                        },
-                        diagnosticsStatus = diagnosticsStatus,
-                        exportingDiagnostics = exportingDiagnostics,
-                        onExportDiagnostics = {
+                    RestartPrimaryCard(
+                        onRestartSystemUi = { scope.launch { SystemUiRestarter.restartSystemUi(context) } },
+                    )
+                }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SectionHeading(title = "功能状态", summary = "当前配置")
+                        FeatureStatusCard(
+                        freeformEnabled = config.freeformBoundaryEnabled,
+                        glassClockEnabled = config.aodGlassEnabled,
+                        superWallpaperDepthEnabled = config.superWallpaperDepthEnabled,
+                        )
+                    }
+                }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SectionHeading(title = "设备信息", summary = "运行环境")
+                        DeviceInfoCard()
+                    }
+                }
+                item {
+                    DiagnosticsCard(
+                        status = diagnosticsStatus,
+                        exporting = exportingDiagnostics,
+                        onExport = {
                             exportingDiagnostics = true
-                            diagnosticsStatus = "正在生成完整设备证据包"
+                            diagnosticsStatus = "正在生成设备诊断包…"
                             scope.launch {
-                                PhoneDiagnosticsExporter.export(context).onSuccess { file ->
-                                    val intent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "text/plain"
-                                        putExtra(Intent.EXTRA_STREAM, PhoneDiagnosticsExporter.shareUri(context, file))
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                PhoneDiagnosticsExporter.export(context)
+                                    .onSuccess { file ->
+                                        val intent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(
+                                                Intent.EXTRA_STREAM,
+                                                PhoneDiagnosticsExporter.shareUri(context, file),
+                                            )
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(Intent.createChooser(intent, "导出景深诊断日志"))
+                                        diagnosticsStatus = "已生成，可在分享面板保存或发送"
                                     }
-                                    context.startActivity(Intent.createChooser(intent, "导出景深诊断日志"))
-                                    diagnosticsStatus = "日志已生成，可在分享面板保存或发送"
-                                }.onFailure { error ->
-                                    diagnosticsStatus = "导出失败：${error.message ?: error.javaClass.simpleName}"
-                                }
+                                    .onFailure { error ->
+                                        diagnosticsStatus = "导出失败：${error.message ?: error.javaClass.simpleName}"
+                                    }
                                 exportingDiagnostics = false
                             }
                         },
@@ -178,12 +212,33 @@ internal fun HomeScreen(
 }
 
 @Composable
+private fun SectionHeading(
+    title: String,
+    summary: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(title, style = MiuixTheme.textStyles.title4, fontWeight = FontWeight.SemiBold)
+        Text(
+            summary,
+            style = MiuixTheme.textStyles.footnote1,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        )
+    }
+}
+
+@Composable
 private fun KernelStyleStatusCard(
     status: ModuleStatus,
     monetEnabled: Boolean,
+    safetyMode: Boolean,
 ) {
     val targetFace = when {
         status.checking -> StatusFace.CHECKING
+        safetyMode -> StatusFace.SAFE_MODE
         status.active -> StatusFace.ACTIVE
         status.pendingRestart -> StatusFace.PENDING_RESTART
         else -> StatusFace.INACTIVE
@@ -203,47 +258,42 @@ private fun KernelStyleStatusCard(
     val angle = if (flip.value <= 90f) flip.value else flip.value - 180f
     val active = displayedFace == StatusFace.ACTIVE
     val pending = displayedFace == StatusFace.PENDING_RESTART
-    val inactive = !active && !pending
-    val statusTextColor = if (isInDarkTheme()) Color.White else Color.Black
-
-    // MIUIX can expose a stale green primaryContainer for some wallpaper palettes even when
-    // primary is blue. Blend the actual Monet primary over the surface so the card and glyph
-    // remain in one accent family. Status meaning is conveyed by the face and label, while the
-    // legacy red/yellow/green palette remains unchanged when Monet is disabled.
+    val checking = displayedFace == StatusFace.CHECKING
+    val safe = displayedFace == StatusFace.SAFE_MODE
+    val dark = isInDarkTheme()
+    val statusTextColor = MiuixTheme.colorScheme.onSurface
     val monetPalette = if (monetEnabled) {
         val primary = MiuixTheme.colorScheme.primary
         StatusPalette(
-            container = primary.copy(alpha = if (isInDarkTheme()) 0.42f else 0.22f)
-                .compositeOver(MiuixTheme.colorScheme.surfaceContainer),
+            container = primary.copy(alpha = if (dark) 0.34f else 0.17f)
+                .compositeOver(MiuixTheme.colorScheme.surfaceContainerHigh),
             accent = primary,
-            content = Color.Black,
+            content = statusTextColor,
         )
     } else {
         null
     }
-    val workingPalette = monetPalette ?: StatusPalette(
-        container = if (isInDarkTheme()) HyperGreenContainerDark else HyperGreenContainerLight,
-        accent = ActiveAccent,
-        content = statusTextColor,
-    )
-    val pendingPalette = monetPalette ?: StatusPalette(
-        container = if (isInDarkTheme()) PendingContainerDark else PendingContainerLight,
-        accent = PendingAccent,
-        content = statusTextColor,
-    )
-    val inactivePalette = monetPalette ?: StatusPalette(
-        container = if (isInDarkTheme()) HyperRedContainerDark else HyperRedContainerLight,
-        accent = HyperRed,
-        content = statusTextColor,
-    )
     val palette = when {
-        active -> workingPalette
-        pending -> pendingPalette
-        else -> inactivePalette
+        monetPalette != null -> monetPalette
+        active -> StatusPalette(
+            container = if (dark) Color(0xFF1A3825) else Color(0xFFDFFAE4),
+            accent = Color(0xFF208A48),
+            content = statusTextColor,
+        )
+        pending || safe -> StatusPalette(
+            container = if (dark) Color(0xFF3E2F1B) else Color(0xFFFFF0DB),
+            accent = Color(0xFFB56B00),
+            content = statusTextColor,
+        )
+        else -> StatusPalette(
+            container = if (dark) HyperRedContainerDark else HyperRedContainerLight,
+            accent = HyperRed,
+            content = statusTextColor,
+        )
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth().height(156.dp).graphicsLayer {
+        modifier = Modifier.fillMaxWidth().heightIn(min = 168.dp).graphicsLayer {
             rotationY = angle
             cameraDistance = 12f * density
         },
@@ -251,157 +301,112 @@ private fun KernelStyleStatusCard(
             color = palette.container,
             contentColor = palette.content,
         ),
-        onClick = {},
-        showIndication = true,
-        pressFeedbackType = if (inactive) PressFeedbackType.Sink else PressFeedbackType.Tilt,
     ) {
-        when {
-            active -> KernelStyleActiveFace(status, palette.accent)
-            pending -> KernelStylePendingFace(status, palette.accent)
-            else -> KernelStyleInactiveFace(status, palette.accent)
-        }
-    }
-}
-
-/** Mirrors KernelSU's active Miuix home card: green container, oversized check outline,
- * 16.dp typography rhythm, and the same bottom-left mode/version label. */
-@Composable
-private fun KernelStyleActiveFace(status: ModuleStatus, accent: Color) {
-    Box(Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .offset(27.dp, 31.dp),
-            contentAlignment = Alignment.BottomEnd,
-        ) {
+        Box(Modifier.fillMaxWidth()) {
             Icon(
-                modifier = Modifier.size(110.dp),
-                imageVector = Icons.Rounded.CheckCircleOutline,
-                tint = accent,
+                modifier = Modifier.align(Alignment.TopEnd).padding(end = 18.dp, top = 18.dp).size(64.dp),
+                imageVector = when {
+                    active -> Icons.Rounded.CheckCircleOutline
+                    pending -> Icons.Rounded.RemoveCircleOutline
+                    checking -> Icons.Rounded.HourglassTop
+                    safe -> Icons.Rounded.Shield
+                    else -> Icons.Rounded.HighlightOff
+                },
+                tint = palette.accent.copy(alpha = 0.78f),
                 contentDescription = null,
             )
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(26.dp),
+            ) {
+                Column(Modifier.padding(end = 72.dp)) {
+                    Text(
+                        text = when {
+                            active -> "工作中"
+                            pending -> "待重启"
+                            checking -> "检测中"
+                            safe -> "安全模式"
+                            else -> "未激活"
+                        },
+                        fontSize = 25.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        text = when {
+                            active -> listOf(status.frameworkName, status.frameworkVersion)
+                                .filter(String::isNotBlank).joinToString(" ").ifBlank { "LibXposed API 102" }
+                            pending -> "模块已加载，重启目标后生效"
+                            checking -> "正在读取模块和作用域状态"
+                            safe -> "效果已暂停，可在设置中关闭安全模式"
+                            else -> status.message
+                        },
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = palette.content.copy(alpha = 0.78f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = if (active) "API 102" else "Freeform Unbounded",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = palette.content.copy(alpha = 0.72f),
+                    )
+                    Text(
+                        text = "v${BuildConfig.VERSION_NAME}",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = palette.content.copy(alpha = 0.72f),
+                    )
+                }
+            }
         }
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-        ) {
-            Text("工作中", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = listOf(status.frameworkName, status.frameworkVersion)
-                    .filter(String::isNotBlank)
-                    .joinToString(" ")
-                    .ifBlank { "LibXposed API 102" },
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 2,
-            )
-        }
-        Text(
-            text = "API 102",
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-        )
-    }
-}
-
-/** KernelSU has no pending-reboot state; this keeps its card geometry and uses the
- * rounded circle-minus glyph with KernelSU's Notice yellow palette. */
-@Composable
-private fun KernelStylePendingFace(status: ModuleStatus, accent: Color) {
-    Box(Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .offset(27.dp, 31.dp),
-            contentAlignment = Alignment.BottomEnd,
-        ) {
-            Icon(
-                modifier = Modifier.size(110.dp),
-                imageVector = Icons.Rounded.RemoveCircleOutline,
-                tint = accent,
-                contentDescription = null,
-            )
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-        ) {
-            Text("待重启", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = "模块已安装，请按需重启系统界面或息屏与锁屏编辑",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 2,
-            )
-        }
-        Text(
-            text = "v${BuildConfig.VERSION_NAME}",
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-        )
-    }
-}
-
-/** The inactive face mirrors the active KernelSU card exactly, changing only its
- * container, semantic color, title, and rounded circle-cross glyph. */
-@Composable
-private fun KernelStyleInactiveFace(status: ModuleStatus, accent: Color) {
-    Box(Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .offset(27.dp, 31.dp),
-            contentAlignment = Alignment.BottomEnd,
-        ) {
-            Icon(
-                modifier = Modifier.size(110.dp),
-                imageVector = Icons.Rounded.HighlightOff,
-                tint = accent,
-                contentDescription = null,
-            )
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-        ) {
-            Text(
-                text = if (status.checking) "检测中" else "未激活",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = if (status.checking) "正在读取当前目标进程状态" else status.message,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 2,
-            )
-        }
-        Text(
-            text = "v${BuildConfig.VERSION_NAME}",
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-        )
     }
 }
 
 @Composable
-private fun RuntimeCard(
-    config: com.freeform.unbounded.AppConfig,
+private fun RestartPrimaryCard(
+    onRestartSystemUi: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.defaultColors(
+            color = MiuixTheme.colorScheme.primaryContainer,
+            contentColor = MiuixTheme.colorScheme.onPrimaryContainer,
+        ),
+        onClick = onRestartSystemUi,
+        pressFeedbackType = PressFeedbackType.Tilt,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Icon(Icons.Rounded.RestartAlt, contentDescription = null, modifier = Modifier.size(27.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("重启系统界面", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "刷新自由窗口功能 · 需要 ROOT",
+                    fontSize = 12.sp,
+                    color = MiuixTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.74f),
+                )
+            }
+            Text("重启", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+private fun RestartTargetsPopup(
+    show: Boolean,
+    onShowChange: (Boolean) -> Unit,
     onRestartSystemUi: () -> Unit,
     onRestartAod: () -> Unit,
     onRestartMiWallpaper: () -> Unit,
@@ -412,169 +417,203 @@ private fun RuntimeCard(
     onRestartEarth: () -> Unit,
     onRestartMars: () -> Unit,
     onRestartAll: () -> Unit,
-    diagnosticsStatus: String?,
-    exportingDiagnostics: Boolean,
-    onExportDiagnostics: () -> Unit,
+) {
+    val options = listOf(
+        RestartMenuOption("系统界面", "刷新自由窗口功能", onRestartSystemUi),
+        RestartMenuOption("息屏与锁屏编辑", "刷新玻璃时钟", onRestartAod),
+        RestartMenuOption("MiWallpaper", "刷新超级壁纸服务", onRestartMiWallpaper),
+        RestartMenuOption("月球超级壁纸", "仅刷新月球实例", onRestartMoon),
+        RestartMenuOption("雪山超级壁纸", "仅刷新雪山实例", onRestartSnowMountain),
+        RestartMenuOption("几何超级壁纸", "仅刷新几何实例", onRestartGeometry),
+        RestartMenuOption("土星超级壁纸", "仅刷新土星实例", onRestartSaturn),
+        RestartMenuOption("地球超级壁纸", "仅刷新地球实例", onRestartEarth),
+        RestartMenuOption("火星超级壁纸", "仅刷新火星实例", onRestartMars),
+        RestartMenuOption("全部静态作用域", "依次重启 9 个目标", onRestartAll),
+    )
+    Box {
+        IconButton(
+            onClick = { onShowChange(true) },
+            holdDownState = show,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.RestartAlt,
+                contentDescription = "重启目标",
+                tint = MiuixTheme.colorScheme.onBackground,
+            )
+        }
+        OverlayListPopup(
+            show = show,
+            popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
+            alignment = PopupPositionProvider.Align.TopEnd,
+            maxHeight = 560.dp,
+            onDismissRequest = { onShowChange(false) },
+        ) {
+            ListPopupColumn {
+                options.forEachIndexed { index, option ->
+                    DropdownImpl(
+                        item = DropdownItem(text = option.title, summary = option.summary),
+                        optionSize = options.size,
+                        isSelected = false,
+                        index = index,
+                        onSelectedIndexChange = {
+                            onShowChange(false)
+                            option.action()
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+private data class RestartMenuOption(
+    val title: String,
+    val summary: String,
+    val action: () -> Unit,
+)
+
+@Composable
+private fun FeatureStatusCard(
+    freeformEnabled: Boolean,
+    glassClockEnabled: Boolean,
+    superWallpaperDepthEnabled: Boolean,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        FeatureStatusRow(
+            icon = Icons.Rounded.Security,
+            title = "自由窗口边界保护",
+            enabled = freeformEnabled,
+            summary = if (freeformEnabled) "已开启 · 重启系统界面后生效" else "已关闭 · 保留系统原行为",
+        )
+        FeatureStatusRow(
+            icon = Icons.Rounded.Wallpaper,
+            title = "强制使用玻璃时钟",
+            enabled = glassClockEnabled,
+            summary = if (glassClockEnabled) "已开启 · 修改后重启息屏与锁屏编辑" else "已关闭 · 保留系统原有时钟限制",
+        )
+        FeatureStatusRow(
+            icon = Icons.Rounded.Layers,
+            title = "超级壁纸景深",
+            enabled = superWallpaperDepthEnabled,
+            summary = if (superWallpaperDepthEnabled) "已开启 · 修改后重启系统界面" else "已关闭 · 保留超级壁纸原有行为",
+        )
+    }
+}
+
+@Composable
+private fun FeatureStatusRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    enabled: Boolean,
+    summary: String,
+) {
+    BasicComponent(
+        title = title,
+        summary = summary,
+        startAction = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.padding(end = 6.dp),
+                tint = MiuixTheme.colorScheme.primary,
+            )
+        },
+        endActions = {
+            Text(
+                text = if (enabled) "开启" else "关闭",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (enabled) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+        },
+    )
+}
+
+@Composable
+private fun DeviceInfoCard() {
+    val kernelVersion = System.getProperty("os.version").orEmpty().ifBlank { "未知" }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        DeviceInfoRow(
+            icon = Icons.Rounded.Smartphone,
+            title = "设备",
+            summary = listOf(Build.MANUFACTURER, Build.MODEL)
+                .filter(String::isNotBlank)
+                .distinct()
+                .joinToString(" ")
+                .ifBlank { "未知设备" },
+        )
+        DeviceInfoRow(
+            icon = Icons.Rounded.Android,
+            title = "Android",
+            summary = "${Build.VERSION.RELEASE} · API ${Build.VERSION.SDK_INT}",
+        )
+        DeviceInfoRow(
+            icon = Icons.Rounded.DeveloperBoard,
+            title = "系统版本",
+            summary = Build.DISPLAY.ifBlank { "未知" },
+        )
+        DeviceInfoRow(
+            icon = Icons.Rounded.Info,
+            title = "Linux 内核",
+            summary = kernelVersion,
+        )
+    }
+}
+
+@Composable
+private fun DeviceInfoRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    summary: String,
+) {
+    BasicComponent(
+        title = title,
+        summary = summary,
+        startAction = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.padding(end = 6.dp),
+                tint = MiuixTheme.colorScheme.onSurface,
+            )
+        },
+    )
+}
+
+@Composable
+private fun DiagnosticsCard(
+    status: String?,
+    exporting: Boolean,
+    onExport: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         BasicComponent(
-            title = "导出景深诊断日志",
-            summary = diagnosticsStatus ?: "一键导出完整设备信息、全部 logcat 缓冲区与关键服务状态\n需要 ROOT 权限",
-            endActions = {
-                TextButton(
-                    text = if (exportingDiagnostics) "读取中" else "导出",
-                    onClick = onExportDiagnostics,
-                    enabled = !exportingDiagnostics,
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
+            title = "景深诊断日志",
+            summary = status ?: "导出设备信息、logcat 与关键服务状态",
+            startAction = {
+                Icon(
+                    Icons.Rounded.Info,
+                    contentDescription = null,
+                    modifier = Modifier.padding(end = 6.dp),
+                    tint = MiuixTheme.colorScheme.primary,
                 )
             },
-        )
-        BasicComponent(
-            title = "1. 重启系统界面",
-            summary = "刷新自由小窗功能\n需要 ROOT 权限",
             endActions = {
                 TextButton(
-                    text = "重启",
-                    onClick = onRestartSystemUi,
+                    text = if (exporting) "读取中" else "导出",
+                    onClick = onExport,
+                    enabled = !exporting,
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                 )
-            },
-        )
-        BasicComponent(
-            title = "2. 重启 Editor",
-            summary = "刷新锁屏玻璃时钟功能\n需要 ROOT 权限",
-            endActions = {
-                TextButton(
-                    text = "重启",
-                    onClick = onRestartAod,
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                )
-            },
-        )
-        BasicComponent(
-            title = "3. 重启 MiWallpaper",
-            summary = "刷新 MiWallpaper 总服务\n需要 ROOT 权限",
-            endActions = {
-                TextButton(
-                    text = "重启",
-                    onClick = onRestartMiWallpaper,
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                )
-            },
-        )
-        BasicComponent(
-            title = "4. 重启月球超级壁纸",
-            summary = "仅刷新月球超级壁纸实例\n需要 ROOT 权限",
-            endActions = {
-                TextButton(
-                    text = "重启",
-                    onClick = onRestartMoon,
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                )
-            },
-        )
-        BasicComponent(
-            title = "5. 重启雪山超级壁纸",
-            summary = "仅刷新雪山超级壁纸实例\n需要 ROOT 权限",
-            endActions = {
-                TextButton(
-                    text = "重启",
-                    onClick = onRestartSnowMountain,
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                )
-            },
-        )
-        BasicComponent(
-            title = "6. 重启几何超级壁纸",
-            summary = "仅刷新几何超级壁纸实例\n需要 ROOT 权限",
-            endActions = {
-                TextButton(
-                    text = "重启",
-                    onClick = onRestartGeometry,
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                )
-            },
-        )
-        BasicComponent(
-            title = "7. 重启土星超级壁纸",
-            summary = "仅刷新土星超级壁纸实例\n需要 ROOT 权限",
-            endActions = {
-                TextButton(
-                    text = "重启",
-                    onClick = onRestartSaturn,
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                )
-            },
-        )
-        BasicComponent(
-            title = "8. 重启地球超级壁纸",
-            summary = "仅刷新地球超级壁纸实例\n需要 ROOT 权限",
-            endActions = {
-                TextButton(
-                    text = "重启",
-                    onClick = onRestartEarth,
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                )
-            },
-        )
-        BasicComponent(
-            title = "9. 重启火星超级壁纸",
-            summary = "仅刷新火星超级壁纸实例\n需要 ROOT 权限",
-            endActions = {
-                TextButton(
-                    text = "重启",
-                    onClick = onRestartMars,
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                )
-            },
-        )
-        BasicComponent(
-            title = "10. 重启全部静态作用域",
-            summary = "依次重启系统界面、Editor、MiWallpaper 和六个超级壁纸\n需要 ROOT 权限",
-            endActions = {
-                TextButton(
-                    text = "全部重启",
-                    onClick = onRestartAll,
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                )
-            },
-        )
-        BasicComponent(
-            title = "自由窗口边界保护",
-            summary = if (config.freeformBoundaryEnabled) {
-                "已开启 · 重启系统界面后生效"
-            } else {
-                "已关闭 · 保留系统原行为"
-            },
-        )
-        BasicComponent(
-            title = "强制使用玻璃时钟",
-            summary = if (config.aodGlassEnabled) {
-                "已开启 · 不支持玻璃时钟的场景也会强制使用锁屏玻璃时钟"
-            } else {
-                "已关闭 · 保留系统原有的玻璃时钟限制"
-            },
-        )
-        BasicComponent(
-            title = "超级壁纸景深",
-            summary = if (config.superWallpaperDepthEnabled) {
-                "已开启 · 使用动态视频壁纸的景深算法"
-            } else {
-                "已关闭 · 保留超级壁纸原有行为"
             },
         )
     }
 }
 
-private enum class StatusFace { CHECKING, ACTIVE, PENDING_RESTART, INACTIVE }
+private enum class StatusFace { CHECKING, ACTIVE, PENDING_RESTART, INACTIVE, SAFE_MODE }
 
 private data class StatusPalette(
     val container: Color,
     val accent: Color,
     val content: Color,
 )
-
-private val ActiveAccent = Color(0xFF36D167)
-private val PendingAccent = Color(0xFFF5A623)
-private val PendingContainerLight = Color(0xFFFFF0DB)
-private val PendingContainerDark = Color(0xFF3E2F1B)

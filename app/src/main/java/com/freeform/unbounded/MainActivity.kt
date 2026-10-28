@@ -11,6 +11,15 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,6 +33,7 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,10 +41,16 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freeform.unbounded.ui.AboutScreen
@@ -53,20 +69,27 @@ import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
-import androidx.navigation3.runtime.NavKey
-import androidx.navigation3.runtime.entryProvider
-import androidx.navigation3.ui.NavDisplay
+import top.yukonga.miuix.kmp.nav.core.NavKey
+import top.yukonga.miuix.kmp.nav.core.NavDisplay
+import top.yukonga.miuix.kmp.nav.transition.NavSwipeDirection
 import top.yukonga.miuix.kmp.basic.Badge
 import top.yukonga.miuix.kmp.basic.BadgedBox
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem
+import top.yukonga.miuix.kmp.basic.NavigationRail
+import top.yukonga.miuix.kmp.basic.NavigationRailItem
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PagerFlingTrackerConnection
+import top.yukonga.miuix.kmp.utils.PagerGestureNestedScrollConnection
+import top.yukonga.miuix.kmp.utils.PagerInterceptionMode
+import top.yukonga.miuix.kmp.utils.PagerNavigationSpringSpec
+import top.yukonga.miuix.kmp.utils.pagerGestureOverride
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -77,8 +100,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val settings by AppSettingsRepository.settings.collectAsState()
-            FreeformUnboundedTheme(settings) {
-                FreeformApp(settings = settings)
+            val systemDensity = LocalDensity.current
+            val density = remember(systemDensity, settings.pageScale) {
+                Density(systemDensity.density * settings.pageScale, systemDensity.fontScale)
+            }
+            CompositionLocalProvider(LocalDensity provides density) {
+                FreeformUnboundedTheme(settings) {
+                    FreeformApp(settings = settings)
+                }
             }
         }
     }
@@ -130,22 +159,32 @@ private sealed interface AppRoute : NavKey {
     data object FreeformBoundary : AppRoute
 }
 
+private val AppBackStackSaver = listSaver<SnapshotStateList<NavKey>, Int>(
+    save = { stack -> stack.map { route ->
+        when (route) {
+            AppRoute.Theme -> SECONDARY_THEME
+            AppRoute.FreeformBoundary -> SECONDARY_FREEFORM_BOUNDARY
+            else -> SECONDARY_MAIN
+        }
+    } },
+    restore = { saved -> saved.map { value ->
+        when (value) {
+            SECONDARY_THEME -> AppRoute.Theme
+            SECONDARY_FREEFORM_BOUNDARY -> AppRoute.FreeformBoundary
+            else -> AppRoute.Main
+        }
+    }.toMutableStateList<NavKey>() },
+)
+
 @Composable
 private fun FreeformApp(
     settings: AppSettings,
 ) {
-    var secondaryPage by rememberSaveable { mutableStateOf(SECONDARY_MAIN) }
-    val secondaryBackStack = remember(secondaryPage) {
-        mutableStateListOf<AppRoute>(AppRoute.Main).apply {
-            when (secondaryPage) {
-                SECONDARY_THEME -> add(AppRoute.Theme)
-                SECONDARY_FREEFORM_BOUNDARY -> add(AppRoute.FreeformBoundary)
-            }
-        }
+    val secondaryBackStack = rememberSaveable(saver = AppBackStackSaver) {
+        mutableStateListOf<NavKey>(AppRoute.Main)
     }
     val status by ModuleStatusRepository.status.collectAsState()
-    // Keep Tab 2 reachable when the module is inactive; its controls explain why
-    // they are unavailable instead of removing the destination.
+    // 模块未激活时仍保留设置入口，由具体控件说明不可用原因。
     val tabs = MainTab.entries
     var savedMainPage by rememberSaveable { mutableStateOf(0) }
     val pagerState = rememberPagerState(
@@ -154,7 +193,12 @@ private fun FreeformApp(
     )
     val mainPagerState = rememberMainPagerState(pagerState = pagerState)
 
-    val popSecondary = { secondaryPage = SECONDARY_MAIN }
+    val popSecondary: () -> Unit = {
+        if (secondaryBackStack.size > 1) secondaryBackStack.removeAt(secondaryBackStack.lastIndex)
+    }
+    val openSecondary: (AppRoute) -> Unit = { route ->
+        if (secondaryBackStack.lastOrNull() == AppRoute.Main) secondaryBackStack.add(route)
+    }
 
     val settledPage = mainPagerState.pagerState.settledPage
     LaunchedEffect(settledPage, tabs.size) {
@@ -168,7 +212,8 @@ private fun FreeformApp(
     }
 
     val background = MiuixTheme.colorScheme.background
-    val glassSupported = settings.floatingBottomBarBlur && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+    val glassSupported = settings.useLiquidGlass(Build.VERSION.SDK_INT)
+    val swipeDismiss = if (settings.swipeDismiss) NavSwipeDirection.LeftToRight else NavSwipeDirection.None
     val backdrop = rememberLayerBackdrop {
         drawRect(background)
         drawContent()
@@ -179,28 +224,28 @@ private fun FreeformApp(
             backStack = secondaryBackStack,
             modifier = Modifier.fillMaxSize(),
             onBack = { popSecondary() },
-            entryProvider = entryProvider {
+            content = {
                 entry<AppRoute.Main> {
                     MainRoot(
                         settings = settings,
                         tabs = tabs,
                         mainPagerState = mainPagerState,
-                        statusInactive = !status.active,
-                        moduleReady = status.active || status.pendingRestart,
+                        showStatusBadge = showModuleStatusBadge(settings.navigationBadge, status),
+                        enableMainBack = secondaryBackStack.size == 1,
                         floating = floating,
                         glassSupported = glassSupported,
                         backdrop = backdrop,
-                        onOpenTheme = { secondaryPage = SECONDARY_THEME },
-                        onOpenFreeformBoundary = { secondaryPage = SECONDARY_FREEFORM_BOUNDARY },
+                        onOpenTheme = { openSecondary(AppRoute.Theme) },
+                        onOpenFreeformBoundary = { openSecondary(AppRoute.FreeformBoundary) },
                     )
                 }
-                entry<AppRoute.Theme> {
+                entry<AppRoute.Theme>(swipeDismiss = swipeDismiss) {
                     ThemeScreen(
                         settings = settings,
                         onBack = { popSecondary() },
                     )
                 }
-                entry<AppRoute.FreeformBoundary> {
+                entry<AppRoute.FreeformBoundary>(swipeDismiss = swipeDismiss) {
                     FreeformBoundaryScreen(
                         enableBlur = settings.enableBlur,
                         moduleReady = status.active || status.pendingRestart,
@@ -242,8 +287,8 @@ private fun MainRoot(
     settings: AppSettings,
     tabs: List<MainTab>,
     mainPagerState: MainPagerState,
-    statusInactive: Boolean,
-    moduleReady: Boolean,
+    showStatusBadge: Boolean,
+    enableMainBack: Boolean,
     floating: Boolean,
     glassSupported: Boolean,
     backdrop: LayerBackdrop,
@@ -256,25 +301,69 @@ private fun MainRoot(
 
     val selectedPage = mainPagerState.selectedPage.coerceIn(0, tabs.lastIndex)
     val blurBackdrop = rememberBlurBackdrop(settings.enableBlur)
+    val pagerMode = settings.pagerGestureMode
+    val interceptPagerGestures = pagerMode == PagerInterceptionMode.CrossAxisInterceptor
+    val flingTracker = remember { PagerFlingTrackerConnection() }
     MainScreenBackHandler(
-        isBackEnabled = selectedPage != 0,
+        isBackEnabled = enableMainBack && selectedPage != 0,
         mainPagerState = mainPagerState,
         maxPredictiveBackProgress = settings.maxPredictiveBackProgress,
     )
 
-    Box(Modifier.fillMaxSize()) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val useRail = maxWidth >= 600.dp
+        val startInsets = WindowInsets.systemBars.only(WindowInsetsSides.Start)
+        val navigationBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        val contentBottomPadding = navigationBottomInset + when {
+            useRail -> 16.dp
+            floating -> 104.dp
+            else -> 88.dp
+        }
+        Row(Modifier.fillMaxSize()) {
+            if (useRail) {
+                NavigationRail(modifier = Modifier.fillMaxHeight()) {
+                    tabs.forEachIndexed { index, tab ->
+                        NavigationRailItem(
+                            selected = selectedPage == index,
+                            onClick = { mainPagerState.animateToPage(index) },
+                            icon = tab.icon,
+                            label = tab.label,
+                            badge = if (showStatusBadge && index == 0) { { Badge() } } else null,
+                        )
+                    }
+                }
+            }
         Box(
             modifier = Modifier
+                .weight(1f)
                 .fillMaxSize()
+                .then(if (useRail) Modifier.consumeWindowInsets(startInsets) else Modifier)
                 .then(if (blurBackdrop != null) Modifier.layerBackdrop(blurBackdrop) else Modifier),
         ) {
             HorizontalPager(
                 state = mainPagerState.pagerState,
                 beyondViewportPageCount = tabs.lastIndex.coerceAtLeast(0),
+                userScrollEnabled = !interceptPagerGestures,
+                overscrollEffect = null,
+                pageNestedScrollConnection = if (interceptPagerGestures) {
+                    PagerGestureNestedScrollConnection
+                } else {
+                    PagerDefaults.pageNestedScrollConnection(mainPagerState.pagerState, Orientation.Horizontal)
+                },
+                flingBehavior = PagerDefaults.flingBehavior(
+                    state = mainPagerState.pagerState,
+                    snapAnimationSpec = PagerNavigationSpringSpec,
+                ),
                 modifier = Modifier
                     .fillMaxSize()
+                    .nestedScroll(flingTracker)
+                    .pagerGestureOverride(
+                        pagerState = mainPagerState.pagerState,
+                        mode = pagerMode,
+                        flingTracker = flingTracker,
+                    )
                     .then(
-                        if (floating && glassSupported) {
+                        if (!useRail && floating && glassSupported) {
                             Modifier.layerBackdrop(backdrop)
                         } else {
                             Modifier
@@ -284,24 +373,25 @@ private fun MainRoot(
                 when (tabs.getOrElse(page) { MainTab.HOME }) {
                     MainTab.HOME -> HomeScreen(
                         enableBlur = settings.enableBlur,
-                        floatingBottomBar = floating,
+                        contentBottomPadding = contentBottomPadding,
                         monetEnabled = settings.monetEnabled,
                     )
                     MainTab.CONFIG -> ConfigScreen(
                         onOpenTheme = onOpenTheme,
                         enableBlur = settings.enableBlur,
-                        floatingBottomBar = floating,
+                        contentBottomPadding = contentBottomPadding,
                         onOpenFreeformBoundary = onOpenFreeformBoundary,
                     )
                     MainTab.ABOUT -> AboutScreen(
                         enableBlur = settings.enableBlur,
-                        floatingBottomBar = floating,
+                        contentBottomPadding = contentBottomPadding,
                     )
                 }
             }
         }
+        }
 
-        if (floating) {
+        if (!useRail && floating) {
             AnimatedContent(
                 targetState = tabs,
                 transitionSpec = { fadeIn() togetherWith fadeOut() },
@@ -313,12 +403,12 @@ private fun MainRoot(
                     tabs = targetTabs,
                     selectedIndex = selectedPage,
                     onSelected = mainPagerState::animateToPage,
-                    showStatusBadge = settings.navigationBadge && statusInactive,
+                    showStatusBadge = showStatusBadge,
                     backdrop = backdrop,
                     glassSupported = glassSupported,
                 )
             }
-        } else {
+        } else if (!useRail) {
             BlurredBar(
                 backdrop = blurBackdrop,
                 modifier = Modifier.align(Alignment.BottomCenter),
@@ -333,6 +423,7 @@ private fun MainRoot(
                             onClick = { mainPagerState.animateToPage(index) },
                             icon = tab.icon,
                             label = tab.label,
+                            badge = if (showStatusBadge && index == 0) { { Badge() } } else null,
                         )
                     }
                 }

@@ -6,6 +6,7 @@
 
 ### v3.0.2-beta.2 · 预发布
 - 保持 beta.1 的 HyperOS 4 景深、前景遮挡、玻璃时钟与 AOD 转场适配，并修正 GitHub Actions 的 NDK 发布构建配置。
+- 统一 MIUIX 主题与主界面布局，整理重启操作，补齐页面缩放、导航手势、横屏侧栏及系统状态联动；保留原有翻盖动画和四分之一有效步进微调。
 
 ### v3.0.2-beta.1 · 预发布
 - 完成 HyperOS 4 超级壁纸景深、前景遮挡与玻璃时钟适配，改善动态帧传输的流畅度和锁屏转入 AOD 时的时钟遮罩衔接。
@@ -303,6 +304,7 @@
 
 ### v3.0.2-beta.2 · Prerelease
 - Keep the HyperOS 4 depth, foreground occlusion, glass-clock, and AOD-transition adaptation from beta.1, and fix the GitHub Actions NDK release-build configuration.
+- Refresh the MIUIX theme and main-screen layout, streamline restart actions, add page scaling, navigation gestures, a landscape rail, and live status wiring; preserve the flip animation and quarter-step adjustment.
 
 ### v3.0.2-beta.1 · Prerelease
 - Complete HyperOS 4 Super-wallpaper depth, foreground occlusion, and glass-clock adaptation; improve frame smoothness and mask continuity during the lockscreen-to-AOD transition.

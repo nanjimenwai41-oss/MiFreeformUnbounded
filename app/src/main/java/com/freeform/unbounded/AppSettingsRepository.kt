@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import top.yukonga.miuix.kmp.theme.ThemeColorSpec
 import top.yukonga.miuix.kmp.theme.ThemePaletteStyle
+import top.yukonga.miuix.kmp.utils.PagerInterceptionMode
 
 internal enum class DarkMode(val label: String) {
     SYSTEM("跟随系统"),
@@ -27,6 +28,9 @@ internal data class AppSettings(
     val predictiveBack: Boolean = false,
     val maxPredictiveBackProgress: Float = DEFAULT_MAX_PREDICTIVE_BACK_PROGRESS,
     val fineAdjustmentEnabled: Boolean = true,
+    val swipeDismiss: Boolean = true,
+    val pagerGestureMode: PagerInterceptionMode = PagerInterceptionMode.CrossAxisInterceptor,
+    val pageScale: Float = 1f,
 ) {
     companion object {
         const val DEFAULT_SEED_COLOR: Int = 0
@@ -66,6 +70,9 @@ internal object AppSettingsRepository {
         )
     }
     fun setFineAdjustmentEnabled(value: Boolean) = update { it.copy(fineAdjustmentEnabled = value) }
+    fun setSwipeDismiss(value: Boolean) = update { it.copy(swipeDismiss = value) }
+    fun setPagerGestureMode(value: PagerInterceptionMode) = update { it.copy(pagerGestureMode = value) }
+    fun setPageScale(value: Float) = update { it.copy(pageScale = normalizePageScale(value)) }
 
     private fun update(transform: (AppSettings) -> AppSettings) {
         val value = transform(_settings.value)
@@ -83,6 +90,9 @@ internal object AppSettingsRepository {
             putBoolean("enable_predictive_back", value.predictiveBack)
             putFloat("max_predictive_back_progress", value.maxPredictiveBackProgress)
             putBoolean("fine_adjustment_enabled", value.fineAdjustmentEnabled)
+            putBoolean("swipe_dismiss", value.swipeDismiss)
+            putString("pager_gesture_mode", value.pagerGestureMode.name)
+            putFloat("page_scale", value.pageScale)
             remove("fine_adjustment_color")
             remove("predictive_back")
             remove("ui_mode")
@@ -114,6 +124,12 @@ internal object AppSettingsRepository {
                 DEFAULT_MAX_PREDICTIVE_BACK_PROGRESS,
             ).coerceIn(MIN_MAX_PREDICTIVE_BACK_PROGRESS, MAX_MAX_PREDICTIVE_BACK_PROGRESS),
             fineAdjustmentEnabled = prefs.getBoolean("fine_adjustment_enabled", true),
+            swipeDismiss = prefs.getBoolean("swipe_dismiss", true),
+            pagerGestureMode = enumValue(
+                prefs.getString("pager_gesture_mode", null),
+                PagerInterceptionMode.CrossAxisInterceptor,
+            ),
+            pageScale = normalizePageScale(prefs.getFloat("page_scale", 1f)),
         )
     }
 

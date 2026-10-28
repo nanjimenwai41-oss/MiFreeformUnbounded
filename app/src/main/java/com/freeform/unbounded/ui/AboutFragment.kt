@@ -1,17 +1,13 @@
 package com.freeform.unbounded.ui
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,10 +28,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
@@ -48,8 +43,9 @@ import com.freeform.unbounded.R
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.squircle.squircleClip
@@ -65,24 +61,21 @@ private const val HYPERLIGHT_URL = "https://github.com/KiminonawaResa/HyperLight
 @Composable
 internal fun AboutScreen(
     enableBlur: Boolean,
-    floatingBottomBar: Boolean,
+    contentBottomPadding: Dp,
 ) {
     val uri = LocalUriHandler.current
     val state = rememberLazyListState()
+    val scrollBehavior = MiuixScrollBehavior()
     val blurBackdrop = rememberBlurBackdrop(enableBlur)
     val barColor = if (blurBackdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface
-    val navigationBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val contentBottomPadding = if (floatingBottomBar) {
-        104.dp + navigationBottomInset
-    } else {
-        32.dp + navigationBottomInset
-    }
     Scaffold(
         topBar = {
             BlurredBar(blurBackdrop) {
-                SmallTopAppBar(
+                TopAppBar(
                     color = barColor,
                     title = "关于",
+                    largeTitle = "关于",
+                    scrollBehavior = scrollBehavior,
                 )
             }
         },
@@ -92,11 +85,12 @@ internal fun AboutScreen(
         ) {
             LazyColumn(
             state = state,
-            modifier = Modifier.fillMaxSize().scrollEndHaptic().overScrollVertical(),
+            modifier = Modifier.fillMaxSize().scrollEndHaptic().overScrollVertical()
+                .nestedScroll(scrollBehavior.nestedScrollConnection),
             contentPadding = PaddingValues(
-                start = 16.dp,
+                start = 12.dp,
                 top = padding.calculateTopPadding() + 16.dp,
-                end = 16.dp,
+                end = 12.dp,
                 bottom = contentBottomPadding,
             ),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -134,12 +128,12 @@ internal fun AboutScreen(
                     )
                     ArrowPreference(
                         title = "此应用基于 MIUIX",
-                        summary = "界面组件、主题系统与 Navigation3 转场由 MIUIX 提供",
+                        summary = "MIUIX 0.9.4 · Compose 组件与主题系统",
                         startAction = { Icon(Icons.Rounded.DesignServices, null, Modifier.padding(end = 14.dp), tint = MiuixTheme.colorScheme.primary) },
                         onClick = { uri.openUri(MIUIX_URL) },
                     )
                     ArrowPreference(
-                        title = "参考 KernelSU",
+                        title = "参考 KernelSU 管理器",
                         summary = "主题设置、悬浮液态底栏与导航结构参考 KernelSU 管理器",
                         startAction = { Icon(Icons.Rounded.Layers, null, Modifier.padding(end = 14.dp), tint = MiuixTheme.colorScheme.primary) },
                         onClick = { uri.openUri(KERNELSU_URL) },
@@ -163,42 +157,43 @@ internal fun AboutScreen(
 
 @Composable
 private fun AboutHero() {
-    val transition = rememberInfiniteTransition(label = "about-light")
-    val shift by transition.animateFloat(
-        initialValue = -0.15f,
-        targetValue = 1.15f,
-        animationSpec = infiniteRepeatable(tween(4800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "about-light-shift",
-    )
+    val colors = MiuixTheme.colorScheme
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(30.dp))
-            .drawBehind {
-                drawRect(
-                    Brush.linearGradient(
-                        colors = listOf(Color(0xFF1D123B), Color(0xFF3C2A75), Color(0xFF112F61)),
-                        start = Offset(size.width * shift, 0f),
-                        end = Offset(size.width * (shift + 0.9f), size.height),
-                    ),
-                )
-                drawCircle(Color(0xFFB38CFF).copy(alpha = 0.24f), radius = size.minDimension * 0.42f, center = Offset(size.width * (0.18f + shift * 0.2f), size.height * 0.22f))
-                drawCircle(Color(0xFF5BD5FF).copy(alpha = 0.18f), radius = size.minDimension * 0.55f, center = Offset(size.width * (0.92f - shift * 0.25f), size.height * 0.82f))
-            }
-            .padding(vertical = 34.dp, horizontal = 18.dp),
-        contentAlignment = Alignment.Center,
+            .background(colors.primaryContainer)
+            .padding(vertical = 22.dp, horizontal = 18.dp),
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Image(
                 painter = painterResource(R.drawable.ic_launcher_app_icon),
                 contentDescription = null,
                 modifier = Modifier
-                    .size(108.dp)
-                    .squircleClip(36.dp),
+                    .size(72.dp)
+                    .squircleClip(24.dp),
             )
-            Text("Freeform Unbounded", color = Color.White, fontSize = 31.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
-            Text("${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", color = Color.White.copy(alpha = 0.78f), fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
-            Text("适用于 HyperOS 的自由小窗与锁屏玻璃时钟模块", color = Color.White.copy(alpha = 0.78f), fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 5.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "Freeform Unbounded",
+                    color = colors.onPrimaryContainer,
+                    fontSize = 23.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    "${BuildConfig.VERSION_NAME} · ${BuildConfig.VERSION_CODE}",
+                    color = colors.onPrimaryContainer.copy(alpha = 0.78f),
+                    fontSize = 13.sp,
+                )
+                Text(
+                    "HyperOS 自由窗口与锁屏效果模块",
+                    color = colors.onPrimaryContainer.copy(alpha = 0.78f),
+                    fontSize = 13.sp,
+                )
+            }
         }
     }
     Spacer(Modifier.height(16.dp))

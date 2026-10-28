@@ -4,8 +4,6 @@ import android.os.Build
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,9 +20,10 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -37,13 +36,18 @@ import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Style
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.WaterDrop
+import androidx.compose.material.icons.rounded.AspectRatio
+import androidx.compose.material.icons.rounded.Swipe
+import androidx.compose.material.icons.rounded.ViewCarousel
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.graphicsLayer
@@ -57,6 +61,12 @@ import com.freeform.unbounded.FreeformApplication
 import com.freeform.unbounded.DEFAULT_MAX_PREDICTIVE_BACK_PROGRESS
 import com.freeform.unbounded.MAX_MAX_PREDICTIVE_BACK_PROGRESS
 import com.freeform.unbounded.MIN_MAX_PREDICTIVE_BACK_PROGRESS
+import com.freeform.unbounded.MIN_PAGE_SCALE
+import com.freeform.unbounded.MAX_PAGE_SCALE
+import com.freeform.unbounded.ui.theme.effectiveFor
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -74,6 +84,9 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeColorSpec
 import top.yukonga.miuix.kmp.theme.ThemePaletteStyle
+import top.yukonga.miuix.kmp.utils.PagerInterceptionMode
+import top.yukonga.miuix.kmp.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.math.roundToInt
 
 @Composable
@@ -83,11 +96,8 @@ internal fun ThemeScreen(
 ) {
     val context = LocalContext.current
     val activity = LocalActivity.current
-    val darkIndex = when (settings.darkMode) {
-        DarkMode.SYSTEM -> 0
-        DarkMode.LIGHT -> 1
-        DarkMode.DARK, DarkMode.AMOLED -> 2
-    }
+    val scrollBehavior = MiuixScrollBehavior()
+    val darkIndex = DarkMode.entries.indexOf(settings.darkMode).coerceAtLeast(0)
     val blurBackdrop = rememberBlurBackdrop(settings.enableBlur)
     val barColor = if (blurBackdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface
     Scaffold(
@@ -97,6 +107,7 @@ internal fun ThemeScreen(
                     color = barColor,
                     title = "主题设置",
                     largeTitle = "主题设置",
+                    scrollBehavior = scrollBehavior,
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(
@@ -119,17 +130,22 @@ internal fun ThemeScreen(
         ) {
             LazyColumn(
             state = state,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(12.dp, padding.calculateTopPadding() + 8.dp, 12.dp, 28.dp),
+            modifier = Modifier.fillMaxSize().scrollEndHaptic().overScrollVertical()
+                .nestedScroll(scrollBehavior.nestedScrollConnection),
+            overscrollEffect = null,
+            contentPadding = PaddingValues(
+                12.dp, padding.calculateTopPadding() + 8.dp, 12.dp,
+                24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+            ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item { ThemePreviewCard(settings) }
             item {
                 TabRow(
-                    tabs = listOf("跟随系统", "浅色", "深色"),
+                    tabs = listOf("跟随系统", "浅色", "深色", "纯黑"),
                     selectedTabIndex = darkIndex,
                     onTabSelected = { index ->
-                        AppSettingsRepository.setDarkMode(DarkMode.entries[index.coerceIn(0, 2)])
+                        AppSettingsRepository.setDarkMode(DarkMode.entries[index.coerceIn(0, DarkMode.entries.lastIndex)])
                     },
                 )
             }
@@ -140,9 +156,10 @@ internal fun ThemeScreen(
                         summary = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) "使用系统壁纸动态颜色" else "当前系统不支持动态取色",
                         startAction = { Icon(Icons.Rounded.Wallpaper, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
                         checked = settings.monetEnabled,
+                        enabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
                         onCheckedChange = AppSettingsRepository::setMonetEnabled,
                     )
-                    AnimatedVisibility(visible = settings.monetEnabled) {
+                    AnimatedVisibility(visible = settings.monetEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         Column {
                             OverlayDropdownPreference(
                                 title = "强调色",
@@ -152,27 +169,27 @@ internal fun ThemeScreen(
                                 selectedIndex = keyColorValues.indexOf(settings.seedColor).coerceAtLeast(0),
                                 onSelectedIndexChange = { AppSettingsRepository.setSeedColor(keyColorValues[it]) },
                             )
-                            AnimatedVisibility(visible = settings.seedColor != AppSettings.DEFAULT_SEED_COLOR) {
-                                Column {
-                                    OverlayDropdownPreference(
-                                        title = "色彩风格",
-                                        summary = settings.paletteStyle.displayName(),
-                                        startAction = { Icon(Icons.Rounded.Style, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
-                                        items = ThemePaletteStyle.entries.map { it.displayName() },
-                                        selectedIndex = ThemePaletteStyle.entries.indexOf(settings.paletteStyle).coerceAtLeast(0),
-                                        onSelectedIndexChange = { AppSettingsRepository.setPaletteStyle(ThemePaletteStyle.entries[it]) },
-                                    )
-                                    val specs = ThemeColorSpec.entries
-                                    OverlayDropdownPreference(
-                                        title = "色彩规范",
-                                        summary = settings.colorSpec.displayName(),
-                                        startAction = { Icon(Icons.Rounded.DesignServices, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
-                                        items = specs.map { it.displayName() },
-                                        selectedIndex = specs.indexOf(settings.colorSpec).coerceAtLeast(0),
-                                        onSelectedIndexChange = { AppSettingsRepository.setColorSpec(specs[it]) },
-                                    )
-                                }
-                            }
+                            OverlayDropdownPreference(
+                                title = "色彩风格",
+                                summary = settings.paletteStyle.displayName(),
+                                startAction = { Icon(Icons.Rounded.Style, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
+                                items = ThemePaletteStyle.entries.map { it.displayName() },
+                                selectedIndex = ThemePaletteStyle.entries.indexOf(settings.paletteStyle).coerceAtLeast(0),
+                                onSelectedIndexChange = { AppSettingsRepository.setPaletteStyle(ThemePaletteStyle.entries[it]) },
+                            )
+                            val specs = ThemeColorSpec.entries
+                            OverlayDropdownPreference(
+                                title = "色彩规范",
+                                summary = if (settings.colorSpec == settings.colorSpec.effectiveFor(settings.paletteStyle)) {
+                                    settings.colorSpec.displayName()
+                                } else {
+                                    "当前风格使用 Material 2021"
+                                },
+                                startAction = { Icon(Icons.Rounded.DesignServices, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
+                                items = specs.map { it.displayName() },
+                                selectedIndex = specs.indexOf(settings.colorSpec).coerceAtLeast(0),
+                                onSelectedIndexChange = { AppSettingsRepository.setColorSpec(specs[it]) },
+                            )
                         }
                     }
                 }
@@ -196,7 +213,7 @@ internal fun ThemeScreen(
                         onCheckedChange = AppSettingsRepository::setFloatingBottomBar,
                     )
                     AnimatedVisibility(
-                        visible = settings.floatingBottomBar && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
+                        visible = settings.enableBlur && settings.floatingBottomBar && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
                     ) {
                         SwitchPreference(
                             title = "液态玻璃",
@@ -212,6 +229,53 @@ internal fun ThemeScreen(
                         startAction = { Icon(Icons.Rounded.Notifications, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
                         checked = settings.navigationBadge,
                         onCheckedChange = AppSettingsRepository::setNavigationBadge,
+                    )
+                }
+            }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    SwitchPreference(
+                        title = "滑动返回",
+                        summary = "向右滑动返回上一级页面",
+                        startAction = { Icon(Icons.Rounded.Swipe, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
+                        checked = settings.swipeDismiss,
+                        onCheckedChange = AppSettingsRepository::setSwipeDismiss,
+                    )
+                    OverlayDropdownPreference(
+                        title = "翻页手势",
+                        summary = when (settings.pagerGestureMode) {
+                            PagerInterceptionMode.Native -> "使用 Compose 标准手势"
+                            PagerInterceptionMode.CrossAxisInterceptor -> "横向滑动可接管列表惯性滚动"
+                            PagerInterceptionMode.TapToHalt -> "列表滚动时，第一次滑动仅停止滚动"
+                        },
+                        startAction = { Icon(Icons.Rounded.ViewCarousel, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
+                        items = listOf("原生", "跨轴接管", "iOS 风格"),
+                        selectedIndex = settings.pagerGestureMode.ordinal,
+                        onSelectedIndexChange = { AppSettingsRepository.setPagerGestureMode(PagerInterceptionMode.entries[it]) },
+                    )
+                    var scale by remember(settings.pageScale) { mutableFloatStateOf(settings.pageScale) }
+                    BasicComponent(
+                        title = "页面缩放",
+                        summary = "${(scale * 100).roundToInt()}% · 调整整个应用的界面大小",
+                        startAction = { Icon(Icons.Rounded.AspectRatio, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
+                        endActions = {
+                            TextButton(text = "重置", enabled = scale != 1f, onClick = {
+                                scale = 1f
+                                AppSettingsRepository.setPageScale(1f)
+                            })
+                        },
+                        bottomAction = {
+                            Slider(
+                                value = scale,
+                                onValueChange = { scale = it },
+                                onValueChangeFinished = { AppSettingsRepository.setPageScale(scale) },
+                                valueRange = MIN_PAGE_SCALE..MAX_PAGE_SCALE,
+                                showKeyPoints = true,
+                                keyPoints = listOf(0.8f, 0.9f, 1f, 1.1f),
+                                magnetThreshold = 0.01f,
+                                hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+                            )
+                        },
                     )
                 }
             }
@@ -241,43 +305,41 @@ internal fun ThemeScreen(
                             var sliderValue by remember(settings.maxPredictiveBackProgress) {
                                 mutableFloatStateOf(settings.maxPredictiveBackProgress)
                             }
-                            ArrowPreference(
-                                title = "最大预测返回进度",
-                                summary = "控制返回手势预览的最大页面位移",
-                                startAction = {
-                                    Icon(
-                                        Icons.AutoMirrored.Rounded.MenuOpen,
-                                        null,
-                                        Modifier.padding(end = 6.dp),
-                                        tint = MiuixTheme.colorScheme.primary,
-                                    )
-                                },
-                                endActions = {
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("最大预测返回进度", fontWeight = FontWeight.Medium)
+                                        Text(
+                                            "控制返回手势预览的最大页面位移",
+                                            style = MiuixTheme.textStyles.footnote1,
+                                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                        )
+                                    }
                                     Text(
                                         text = "${(sliderValue * 100).roundToInt()}%",
                                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                     )
-                                },
-                                onClick = {},
-                                bottomAction = {
-                                    Slider(
-                                        value = sliderValue,
-                                        onValueChange = { sliderValue = it },
-                                        onValueChangeFinished = {
-                                            AppSettingsRepository.setMaxPredictiveBackProgress(sliderValue)
-                                        },
-                                        valueRange = MIN_MAX_PREDICTIVE_BACK_PROGRESS..MAX_MAX_PREDICTIVE_BACK_PROGRESS,
-                                        showKeyPoints = true,
-                                        keyPoints = listOf(
-                                            MIN_MAX_PREDICTIVE_BACK_PROGRESS,
-                                            DEFAULT_MAX_PREDICTIVE_BACK_PROGRESS,
-                                            MAX_MAX_PREDICTIVE_BACK_PROGRESS,
-                                        ),
-                                        magnetThreshold = 0.01f,
-                                        hapticEffect = SliderDefaults.SliderHapticEffect.Step,
-                                    )
-                                },
-                            )
+                                }
+                                Slider(
+                                    value = sliderValue,
+                                    onValueChange = { sliderValue = it },
+                                    onValueChangeFinished = {
+                                        AppSettingsRepository.setMaxPredictiveBackProgress(sliderValue)
+                                    },
+                                    valueRange = MIN_MAX_PREDICTIVE_BACK_PROGRESS..MAX_MAX_PREDICTIVE_BACK_PROGRESS,
+                                    showKeyPoints = true,
+                                    keyPoints = listOf(
+                                        MIN_MAX_PREDICTIVE_BACK_PROGRESS,
+                                        DEFAULT_MAX_PREDICTIVE_BACK_PROGRESS,
+                                        MAX_MAX_PREDICTIVE_BACK_PROGRESS,
+                                    ),
+                                    magnetThreshold = 0.01f,
+                                    hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+                                )
+                            }
                         }
                     }
                 }
@@ -289,24 +351,51 @@ internal fun ThemeScreen(
 
 @Composable
 private fun ThemePreviewCard(settings: AppSettings) {
-    val primary = MiuixTheme.colorScheme.primary
+    val colors = MiuixTheme.colorScheme
+    val colorSource = when {
+        !settings.monetEnabled || Build.VERSION.SDK_INT < Build.VERSION_CODES.S -> "MIUIX 默认色"
+        settings.seedColor == AppSettings.DEFAULT_SEED_COLOR -> "壁纸动态色"
+        else -> keyColorLabels[keyColorValues.indexOf(settings.seedColor).coerceAtLeast(0)]
+    }
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.surfaceContainer),
+        colors = CardDefaults.defaultColors(color = colors.surfaceContainer),
     ) {
-        Box(Modifier.fillMaxWidth().height(270.dp), contentAlignment = Alignment.Center) {
-            Box(
-                Modifier
-                    .size(width = 180.dp, height = 250.dp)
-                    .border(2.dp, MiuixTheme.colorScheme.outline, RoundedCornerShape(24.dp))
-                    .padding(10.dp),
-            ) {
-                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("主题预览", fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                    Box(Modifier.fillMaxWidth().height(52.dp).background(primary.copy(alpha = 0.24f), RoundedCornerShape(10.dp)))
-                    Box(Modifier.weight(1f).fillMaxWidth().background(MiuixTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(10.dp)))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        repeat(4) { Box(Modifier.size(28.dp).background(if (it == 0) primary else MiuixTheme.colorScheme.surfaceContainerHighest, CircleShape)) }
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("主题预览", style = MiuixTheme.textStyles.title4, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "${settings.darkMode.label} · $colorSource · ${settings.paletteStyle.displayName()}",
+                    style = MiuixTheme.textStyles.body2,
+                    color = colors.onSurfaceVariantSummary,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    "主色" to colors.primary,
+                    "次色" to colors.secondaryVariant,
+                    "强调" to colors.tertiaryContainer,
+                    "背景" to colors.surfaceContainerHighest,
+                ).forEach { (label, color) ->
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(38.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(color),
+                        )
+                        Text(
+                            label,
+                            fontSize = 11.sp,
+                            color = colors.onSurfaceVariantSummary,
+                        )
                     }
                 }
             }

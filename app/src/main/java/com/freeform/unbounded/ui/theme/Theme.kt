@@ -38,9 +38,7 @@ internal fun FreeformUnboundedTheme(
     }
     val monetAvailable = settings.monetEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val mode = resolveColorSchemeMode(settings.darkMode, monetAvailable)
-    // KernelSU resolves the platform Monet primary first and passes it to MIUIX.
-    // Without this key color, MIUIX can fall back to its default green while the
-    // rest of the palette is dynamic, producing a mixed-color home card.
+    // 先解析系统 Monet 主色再交给 MIUIX，避免状态卡和动态主题各用一套颜色。
     val keyColor = when {
         settings.seedColor != AppSettings.DEFAULT_SEED_COLOR -> Color(settings.seedColor)
         monetAvailable -> if (dark) {
@@ -52,7 +50,7 @@ internal fun FreeformUnboundedTheme(
     }
     val colorSpec = settings.colorSpec.effectiveFor(settings.paletteStyle)
 
-    // MIUIX only applies keyColor in Monet modes; this mirrors KernelSU's controller setup.
+    // MIUIX 只在 Monet 模式下应用种子色。
     val controller = ThemeController(
         mode,
         keyColor = keyColor,
@@ -63,11 +61,29 @@ internal fun FreeformUnboundedTheme(
 
     UpdateSystemBars(dark)
     MiuixTheme(controller = controller) {
-        CompositionLocalProvider(
-            LocalDarkTheme provides dark,
-            LocalContentColor provides MiuixTheme.colorScheme.onBackground,
-            content = content,
-        )
+        val contentColor = MiuixTheme.colorScheme.onBackground
+        val themedContent: @Composable () -> Unit = {
+            CompositionLocalProvider(
+                LocalDarkTheme provides dark,
+                LocalContentColor provides contentColor,
+                content = content,
+            )
+        }
+        if (settings.darkMode == DarkMode.AMOLED) {
+            val colors = MiuixTheme.colorScheme.copy(
+                background = Color.Black,
+                surface = Color.Black,
+                surfaceVariant = Color(0xFF0B0B0B),
+                surfaceContainer = Color.Black,
+                surfaceContainerHigh = Color(0xFF0A0A0A),
+                surfaceContainerHighest = Color(0xFF151515),
+                outline = Color(0xFF353535),
+                dividerLine = Color(0xFF242424),
+            )
+            MiuixTheme(colors = colors, content = themedContent)
+        } else {
+            themedContent()
+        }
     }
 }
 
@@ -80,7 +96,7 @@ internal fun resolveColorSchemeMode(darkMode: DarkMode, monetEnabled: Boolean): 
     else -> ColorSchemeMode.Dark
 }
 
-private fun ThemeColorSpec.effectiveFor(style: ThemePaletteStyle): ThemeColorSpec {
+internal fun ThemeColorSpec.effectiveFor(style: ThemePaletteStyle): ThemeColorSpec {
     val supportsSpec2025 = style == ThemePaletteStyle.TonalSpot ||
         style == ThemePaletteStyle.Neutral ||
         style == ThemePaletteStyle.Vibrant ||

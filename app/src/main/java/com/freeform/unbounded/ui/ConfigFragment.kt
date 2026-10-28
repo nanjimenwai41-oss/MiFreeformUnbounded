@@ -47,6 +47,9 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -59,6 +62,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -79,6 +83,9 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TextFieldDefaults
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.utils.overScrollVertical
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
@@ -90,22 +97,15 @@ internal fun ConfigScreen(
     onOpenFreeformBoundary: () -> Unit,
     onOpenTheme: () -> Unit,
     enableBlur: Boolean,
-    floatingBottomBar: Boolean,
+    contentBottomPadding: Dp,
 ) {
     val config by ConfigRepository.config.collectAsState()
     val context = LocalContext.current
     var showGlassWarning by remember { mutableStateOf(false) }
     var showResetWarning by remember { mutableStateOf(false) }
+    val scrollBehavior = MiuixScrollBehavior()
     val blurBackdrop = rememberBlurBackdrop(enableBlur)
     val barColor = if (blurBackdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface
-    val navigationBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val contentBottomPadding = if (floatingBottomBar) {
-        // The floating bar is 64.dp high, sits 12.dp above the navigation inset,
-        // and is drawn over the pager rather than inside Scaffold.
-        104.dp + navigationBottomInset
-    } else {
-        32.dp + navigationBottomInset
-    }
     Scaffold(
         topBar = {
             BlurredBar(blurBackdrop) {
@@ -113,6 +113,7 @@ internal fun ConfigScreen(
                     color = barColor,
                     title = "设置",
                     largeTitle = "设置",
+                    scrollBehavior = scrollBehavior,
                 )
             }
         },
@@ -121,14 +122,16 @@ internal fun ConfigScreen(
             modifier = if (blurBackdrop != null) Modifier.layerBackdrop(blurBackdrop) else Modifier,
         ) {
             LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().scrollEndHaptic().overScrollVertical()
+                .nestedScroll(scrollBehavior.nestedScrollConnection),
+            overscrollEffect = null,
             contentPadding = PaddingValues(
-                start = 16.dp,
+                start = 12.dp,
                 top = padding.calculateTopPadding() + 8.dp,
-                end = 16.dp,
+                end = 12.dp,
                 bottom = contentBottomPadding,
             ),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item { SectionLabel("模块功能") }
             item {
@@ -136,9 +139,9 @@ internal fun ConfigScreen(
                     SwitchPreference(
                         title = "模块安全模式",
                         summary = if (config.safetyModeAutoTriggered) {
-                            "已自动触发：同一作用域在 60 秒内连续加载 4 次；当前所有模块 hooks 均已直通。确认稳定后可手动关闭。"
+                            "已自动启用，所有 hooks 暂时直通；确认系统稳定后可手动关闭。"
                         } else {
-                            "开启后所有作用域 hooks 均直通；模块只会在同一作用域 60 秒内第 4 次加载时自动开启，避免正常单次重启误判。"
+                            "遇到连续加载异常时自动启用；打开后所有 hooks 将直通。"
                         },
                         startAction = {
                             Icon(
@@ -166,7 +169,7 @@ internal fun ConfigScreen(
                     )
                     SwitchPreference(
                         title = "强制使用玻璃时钟",
-                        summary = "在不支持玻璃时钟的场景下（例如动态壁纸和超级壁纸）强制使用锁屏玻璃时钟；修改后请重启系统界面和息屏与锁屏编辑，重启后生效",
+                        summary = "用于动态壁纸等不支持玻璃时钟的场景；修改后重启系统界面与息屏编辑",
                         startAction = {
                             Icon(
                                 Icons.Rounded.Wallpaper,
@@ -186,7 +189,7 @@ internal fun ConfigScreen(
                     )
                     SwitchPreference(
                         title = "超级壁纸景深",
-                        summary = "将动态视频壁纸的景深算法用于超级壁纸；修改后请重启系统界面，重启后生效",
+                        summary = "将动态壁纸景深用于超级壁纸；修改后重启系统界面",
                         startAction = {
                             Icon(
                                 Icons.Rounded.Layers,
@@ -256,13 +259,15 @@ internal fun FreeformBoundaryScreen(
     var sliderValue by remember(config.securityMarginPx) {
         mutableFloatStateOf(config.securityMarginPx.toFloat())
     }
-    var rawSliderValue by remember { mutableFloatStateOf(sliderValue) }
-    var fineAdjustmentGestureStarted by remember { mutableStateOf(false) }
+    val fineAdjustmentDrag = remember(config.securityMarginPx, settings.fineAdjustmentEnabled) {
+        FineAdjustmentDragState()
+    }
     val controlsEnabled = moduleReady && config.freeformBoundaryEnabled
+    val scrollBehavior = MiuixScrollBehavior()
     val blurBackdrop = rememberBlurBackdrop(enableBlur)
     val barColor = if (blurBackdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface
-    val adjustmentCardColor = if (isInDarkTheme()) Color(0xFF424242) else Color(0xFFE0E0E0)
-    val adjustmentContentColor = if (isInDarkTheme()) Color(0xFFBDBDBD) else Color(0xFF616161)
+    val adjustmentCardColor = MiuixTheme.colorScheme.surfaceContainerHigh
+    val adjustmentContentColor = MiuixTheme.colorScheme.onSurfaceVariantSummary
     val inactiveToast = {
         Toast.makeText(
             context,
@@ -277,6 +282,7 @@ internal fun FreeformBoundaryScreen(
                     color = barColor,
                     title = "自由窗口边界保护",
                     largeTitle = "自由窗口边界保护",
+                    scrollBehavior = scrollBehavior,
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(
@@ -294,14 +300,16 @@ internal fun FreeformBoundaryScreen(
             modifier = if (blurBackdrop != null) Modifier.layerBackdrop(blurBackdrop) else Modifier,
         ) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().scrollEndHaptic().overScrollVertical()
+                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                overscrollEffect = null,
                 contentPadding = PaddingValues(
-                    start = 16.dp,
+                    start = 12.dp,
                     top = padding.calculateTopPadding() + 8.dp,
-                    end = 16.dp,
-                    bottom = 28.dp,
+                    end = 12.dp,
+                    bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
                 ),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item {
                     Card(modifier = Modifier.fillMaxWidth()) {
@@ -388,6 +396,21 @@ internal fun FreeformBoundaryScreen(
                                 Slider(
                                     value = sliderValue,
                                     enabled = controlsEnabled,
+                                    modifier = Modifier.semantics {
+                                        // 无障碍调整是绝对值操作，不经过触点锚定。
+                                        setProgress { target ->
+                                            if (!controlsEnabled) false else {
+                                                val value = target.coerceIn(
+                                                    ModuleConfigKeys.MIN_MARGIN.toFloat(),
+                                                    ModuleConfigKeys.MAX_MARGIN.toFloat(),
+                                                )
+                                                sliderValue = value
+                                                fineAdjustmentDrag.finish()
+                                                ConfigRepository.setSecurityMargin(value.roundToInt())
+                                                true
+                                            }
+                                        }
+                                    },
                                     onValueChange = { rawValue ->
                                         if (!controlsEnabled) {
                                             if (!moduleReady) inactiveToast()
@@ -395,25 +418,16 @@ internal fun FreeformBoundaryScreen(
                                         }
                                         if (!settings.fineAdjustmentEnabled) {
                                             sliderValue = rawValue
-                                            rawSliderValue = rawValue
-                                            fineAdjustmentGestureStarted = false
                                         } else {
-                                            if (fineAdjustmentGestureStarted) {
-                                                sliderValue = applyFineAdjustment(
-                                                    currentValue = sliderValue,
-                                                    rawValue = rawValue,
-                                                    previousRawValue = rawSliderValue,
-                                                )
-                                            } else {
-                                                fineAdjustmentGestureStarted = true
-                                            }
-                                            rawSliderValue = rawValue
+                                            sliderValue = fineAdjustmentDrag.adjust(
+                                                currentValue = sliderValue,
+                                                rawValue = rawValue,
+                                            )
                                         }
                                     },
                                     onValueChangeFinished = {
                                         if (!controlsEnabled) return@Slider
-                                        fineAdjustmentGestureStarted = false
-                                        rawSliderValue = sliderValue
+                                        fineAdjustmentDrag.finish()
                                         ConfigRepository.setSecurityMargin(sliderValue.roundToInt())
                                     },
                                     valueRange = ModuleConfigKeys.MIN_MARGIN.toFloat()..ModuleConfigKeys.MAX_MARGIN.toFloat(),
@@ -421,8 +435,12 @@ internal fun FreeformBoundaryScreen(
                             },
                         )
                         OverlayDropdownPreference(
-                            title = "精细调节",
-                            summary = FINE_ADJUSTMENT_OPTIONS[if (settings.fineAdjustmentEnabled) 0 else 1],
+                            title = "有效步进调节",
+                            summary = if (settings.fineAdjustmentEnabled) {
+                                "滑动步幅缩小至 1/4，便于精确微调"
+                            } else {
+                                "按标准滑动步幅调节"
+                            },
                             startAction = {
                                 Icon(
                                     Icons.Rounded.Tune,
