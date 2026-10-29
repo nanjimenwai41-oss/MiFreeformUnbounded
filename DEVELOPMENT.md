@@ -4,11 +4,11 @@
 
 ## 日常开发
 
-1. 从 `main` 更新代码，为一组相关改动创建短分支，例如 `codex/ui-settings` 或 `codex/hook-aod`。很小的文档修正可以直接提交到 `main`。
+1. 所有操作统一在 `main` 上完成。开始前检查分支和工作区，保留已有改动后使用 `git pull --ff-only origin main` 同步代码；除非用户明确变更规则，不创建开发分支或其他分支的 worktree。仓库元指令见 `AGENTS.md`。
 2. 每完成一个逻辑完整、可独立回退的改动就提交一次。提交信息使用 `feat:`、`fix:`、`refactor:`、`test:`、`docs:`、`build:` 或 `chore:` 前缀，例如 `fix(aod): preserve glass clock effect`。
-3. 把分支推送到 GitHub。每次推送都会运行 CI：版本一致性检查、单元测试、Lint 和 Debug 构建。CI 产生的 Debug APK 只是测试工件，不是正式版本。
-4. 在手机上安装 CI Debug APK 验证功能；需要继续修复时，在同一个分支继续提交，CI 会自动重新构建。日志只能放在本地 Downloads 或被 `.gitignore` 忽略的目录中。
-5. 验证完成后将分支合并到 `main`。个人项目不强制 Pull Request，但保留 Pull Request 可以留下测试结果和决策记录。
+3. 把 `main` 推送到 GitHub。每次推送都会运行 CI：版本一致性检查、单元测试、Lint 和 Debug 构建。CI 产生的 Debug APK 只是测试工件，不是正式版本。
+4. 在手机上安装 CI Debug APK 验证功能；需要继续修复时，在 `main` 继续提交，CI 会自动重新构建。日志只能放在本地 Downloads 或被 `.gitignore` 忽略的目录中。
+5. 在提交记录中保留验证结果和必要的决策说明。若需要合入已有旧分支，先备份并保留所有提交，确认已完整合入 `main` 后再清理分支。
 
 ## 版本和发布
 
@@ -60,8 +60,8 @@ git push origin v3.0.2-beta.2
 # 查看本地状态
 git status
 
-# 推送开发分支，触发 CI
-git push -u origin codex/<topic>
+# 推送 main，触发 CI
+git push origin main
 
 # 只构建 Debug 测试包
 .\gradlew.bat :app\assembleDebug --no-daemon --console=plain
@@ -70,4 +70,4 @@ git push -u origin codex/<topic>
 .\gradlew.bat tasks --all
 ```
 
-更多背景：GitHub Flow 建议使用短分支、持续提交和合并；Android 官方建议使用 Gradle Wrapper 构建；GitHub Release 由 Git tag 指向固定源码点；Keep a Changelog 用于维护人工整理的版本变更，不能用完整 Git 日志代替。
+更多背景：本仓库按用户要求统一在 `main` 开发，持续提交并通过 CI 验证；Android 官方建议使用 Gradle Wrapper 构建；GitHub Release 由 Git tag 指向固定源码点；Keep a Changelog 用于维护人工整理的版本变更，不能用完整 Git 日志代替。

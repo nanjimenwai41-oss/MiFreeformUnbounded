@@ -4,11 +4,11 @@ This is a personal Android/Modern LibXposed module. A conversation, debugging se
 
 ## Daily development
 
-1. Update `main` and create a short-lived branch for one related change, such as `codex/ui-settings` or `codex/hook-aod`. A tiny documentation-only fix may be committed directly to `main`.
+1. Perform all work on `main`. Check the branch and worktree first, preserve existing changes, and sync with `git pull --ff-only origin main`. Do not create development branches or worktrees on other branches unless the user explicitly changes this rule. See `AGENTS.md` for repository instructions.
 2. Commit each logically complete, independently revertible change. Use Conventional Commit prefixes such as `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `build:`, and `chore:`; for example, `fix(aod): preserve glass clock effect`.
-3. Push the branch to GitHub. Every push runs CI: version consistency, unit tests, lint, and a Debug build. The CI Debug APK is a test artifact, not a release.
-4. Install the CI Debug APK on the phone and verify the behavior. Continue pushing commits to the same branch when feedback requires more changes. Keep logs in the local Downloads directory or another path ignored by `.gitignore`.
-5. Merge the branch into `main` after verification. Pull requests are optional for a personal project, but they preserve test results and decisions when useful.
+3. Push `main` to GitHub. Every push runs CI: version consistency, unit tests, lint, and a Debug build. The CI Debug APK is a test artifact, not a release.
+4. Install the CI Debug APK on the phone and verify the behavior. Continue committing on `main` when feedback requires more changes. Keep logs in the local Downloads directory or another path ignored by `.gitignore`.
+5. Preserve validation results and relevant decisions in commit records. If an existing old branch needs to be integrated, back it up and preserve all commits, then remove the branch only after confirming that `main` contains its complete history.
 
 ## Versioning and releases
 
@@ -60,8 +60,8 @@ Save them as `DEBUG_KEYSTORE_BASE64` and `LEGACY_RELEASE_KEYSTORE_BASE64` respec
 # Inspect local state
 git status
 
-# Push a development branch and trigger CI
-git push -u origin codex/<topic>
+# Push main and trigger CI
+git push origin main
 
 # Build only the Debug test package
 .\gradlew.bat :app\assembleDebug --no-daemon --console=plain
@@ -70,4 +70,4 @@ git push -u origin codex/<topic>
 .\gradlew.bat tasks --all
 ```
 
-Background: GitHub Flow uses short-lived branches, continuous commits, and merges; Android recommends the Gradle Wrapper for builds; a GitHub Release points to a fixed Git tag; Keep a Changelog is a curated release history rather than a raw Git log.
+Background: this repository follows the user's requirement to work exclusively on `main`, with continuous commits and CI validation; Android recommends the Gradle Wrapper for builds; a GitHub Release points to a fixed Git tag; Keep a Changelog is a curated release history rather than a raw Git log.
