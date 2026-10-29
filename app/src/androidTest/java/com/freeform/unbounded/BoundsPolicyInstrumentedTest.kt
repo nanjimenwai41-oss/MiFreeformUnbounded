@@ -10,6 +10,18 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class BoundsPolicyInstrumentedTest {
     @Test
+    fun expandedMarginIsLimitedByActualWindowSizeWithoutChangingBoundsSize() {
+        val screen = Rect(0, 0, 1156, 2510)
+        val window = Rect(-3000, -3000, -2400, -1800)
+        val adjusted = BoundsPolicy.keepInnerEdgesVisible(window, screen, ModuleConfigKeys.MAX_MARGIN)
+
+        assertEquals(window.width(), adjusted.width())
+        assertEquals(window.height(), adjusted.height())
+        assertEquals(0, adjusted.left)
+        assertEquals(0, adjusted.top)
+    }
+
+    @Test
     fun horizontalDragTargetKeepsRequestedXAndSystemY() {
         val result = Rect(40, 120, 580, 900)
         val dragTarget = Rect(-240, 48, 300, 828)

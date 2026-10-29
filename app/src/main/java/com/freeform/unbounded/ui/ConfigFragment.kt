@@ -27,8 +27,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.AspectRatio
+import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -94,7 +95,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun ConfigScreen(
     onOpenFreeformBoundary: () -> Unit,
-    onOpenTheme: () -> Unit,
     enableBlur: Boolean,
     contentBottomPadding: Dp,
 ) {
@@ -110,8 +110,8 @@ internal fun ConfigScreen(
             BlurredBar(blurBackdrop) {
                 TopAppBar(
                     color = barColor,
-                    title = "设置",
-                    largeTitle = "设置",
+                    title = "配置",
+                    largeTitle = "配置",
                     scrollBehavior = scrollBehavior,
                 )
             }
@@ -140,7 +140,7 @@ internal fun ConfigScreen(
                         summary = "总开关、最小可见距离和精细调节",
                         startAction = {
                             Icon(
-                                Icons.Rounded.Tune,
+                                Icons.Rounded.AspectRatio,
                                 contentDescription = null,
                                 modifier = Modifier.padding(end = 6.dp),
                                 tint = MiuixTheme.colorScheme.primary,
@@ -153,7 +153,7 @@ internal fun ConfigScreen(
                         summary = "用于动态壁纸等不支持玻璃时钟的场景；修改后重启系统界面与息屏编辑",
                         startAction = {
                             Icon(
-                                Icons.Rounded.Wallpaper,
+                                Icons.Rounded.AccessTime,
                                 contentDescription = null,
                                 modifier = Modifier.padding(end = 6.dp),
                                 tint = MiuixTheme.colorScheme.primary,
@@ -181,16 +181,6 @@ internal fun ConfigScreen(
                         },
                         checked = config.superWallpaperDepthEnabled,
                         onCheckedChange = ConfigRepository::setSuperWallpaperDepthEnabled,
-                    )
-                }
-            }
-            item { SectionLabel("外观") }
-            item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    ArrowPreference(
-                        title = "主题与底栏",
-                        summary = "深色模式、Monet、色板、主题色和液态玻璃底栏",
-                        onClick = onOpenTheme,
                     )
                 }
             }

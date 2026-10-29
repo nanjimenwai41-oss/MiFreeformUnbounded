@@ -30,7 +30,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -55,10 +54,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freeform.unbounded.ui.AboutScreen
 import com.freeform.unbounded.ui.AboutModuleInfo
+import com.freeform.unbounded.ui.SettingsScreen
 import com.freeform.unbounded.ui.BlurredBar
 import com.freeform.unbounded.ui.ConfigScreen
 import com.freeform.unbounded.ui.FreeformBoundaryScreen
 import com.freeform.unbounded.ui.HomeScreen
+import com.freeform.unbounded.ui.LocalMainNavigationVisibility
+import com.freeform.unbounded.ui.MainNavigationVisibility
+import androidx.compose.material.icons.rounded.Tune
 import com.freeform.unbounded.ui.ThemeScreen
 import com.freeform.unbounded.ui.component.FloatingBottomBar
 import com.freeform.unbounded.ui.component.FloatingBottomBarItem
@@ -156,25 +159,28 @@ class MainActivity : ComponentActivity() {
 
 private sealed interface AppRoute : NavKey {
     data object Main : AppRoute
-    data object Theme : AppRoute
+    data object ModuleInfo : AppRoute
     data object FreeformBoundary : AppRoute
     data object About : AppRoute
+    data object Appearance : AppRoute
 }
 
 private val AppBackStackSaver = listSaver<SnapshotStateList<NavKey>, Int>(
     save = { stack -> stack.map { route ->
         when (route) {
-            AppRoute.Theme -> SECONDARY_THEME
+            AppRoute.ModuleInfo -> SECONDARY_MODULE_INFO
             AppRoute.FreeformBoundary -> SECONDARY_FREEFORM_BOUNDARY
             AppRoute.About -> SECONDARY_ABOUT
+            AppRoute.Appearance -> SECONDARY_APPEARANCE
             else -> SECONDARY_MAIN
         }
     } },
     restore = { saved -> saved.map { value ->
         when (value) {
-            SECONDARY_THEME -> AppRoute.Theme
+            SECONDARY_MODULE_INFO -> AppRoute.ModuleInfo
             SECONDARY_FREEFORM_BOUNDARY -> AppRoute.FreeformBoundary
             SECONDARY_ABOUT -> AppRoute.About
+            SECONDARY_APPEARANCE -> AppRoute.Appearance
             else -> AppRoute.Main
         }
     }.toMutableStateList<NavKey>() },
@@ -239,14 +245,24 @@ private fun FreeformApp(
                         floating = floating,
                         glassSupported = glassSupported,
                         backdrop = backdrop,
-                        onOpenTheme = { openSecondary(AppRoute.Theme) },
+                        onOpenModuleInfo = { openSecondary(AppRoute.ModuleInfo) },
                         onOpenFreeformBoundary = { openSecondary(AppRoute.FreeformBoundary) },
                         onOpenAbout = { openSecondary(AppRoute.About) },
+                        onOpenAppearance = { openSecondary(AppRoute.Appearance) },
                     )
                 }
-                entry<AppRoute.Theme>(swipeDismiss = swipeDismiss) {
+                entry<AppRoute.ModuleInfo>(swipeDismiss = swipeDismiss) {
+                    AboutModuleInfo(
+                        enableBlur = settings.enableBlur,
+                        contentBottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp,
+                        onOpenAbout = { secondaryBackStack.add(AppRoute.About) },
+                        onBack = { popSecondary() },
+                    )
+                }
+                entry<AppRoute.Appearance>(swipeDismiss = swipeDismiss) {
                     ThemeScreen(
                         settings = settings,
+                        contentBottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp,
                         onBack = { popSecondary() },
                     )
                 }
@@ -304,9 +320,10 @@ private fun MainRoot(
     floating: Boolean,
     glassSupported: Boolean,
     backdrop: LayerBackdrop,
-    onOpenTheme: () -> Unit,
+    onOpenModuleInfo: () -> Unit,
     onOpenFreeformBoundary: () -> Unit,
     onOpenAbout: () -> Unit,
+    onOpenAppearance: () -> Unit,
 ) {
     LaunchedEffect(mainPagerState.pagerState.currentPage) {
         mainPagerState.syncPage()
@@ -323,6 +340,8 @@ private fun MainRoot(
         maxPredictiveBackProgress = settings.maxPredictiveBackProgress,
     )
 
+    val navigationVisibility = remember { MainNavigationVisibility() }
+    CompositionLocalProvider(LocalMainNavigationVisibility provides navigationVisibility) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val useRail = maxWidth >= 600.dp
         val startInsets = WindowInsets.systemBars.only(WindowInsetsSides.Start)
@@ -333,7 +352,7 @@ private fun MainRoot(
             else -> 88.dp
         }
         Row(Modifier.fillMaxSize()) {
-            if (useRail) {
+            if (useRail && !navigationVisibility.hidden) {
                 NavigationRail(modifier = Modifier.fillMaxHeight()) {
                     tabs.forEachIndexed { index, tab ->
                         NavigationRailItem(
@@ -390,18 +409,23 @@ private fun MainRoot(
                         monetEnabled = settings.monetEnabled,
                     )
                     MainTab.CONFIG -> ConfigScreen(
-                        onOpenTheme = onOpenTheme,
                         enableBlur = settings.enableBlur,
                         contentBottomPadding = contentBottomPadding,
                         onOpenFreeformBoundary = onOpenFreeformBoundary,
                     )
-                    MainTab.ABOUT -> AboutModuleInfo(onOpenAbout = onOpenAbout, enableBlur = settings.enableBlur, contentBottomPadding = contentBottomPadding)
+                    MainTab.SETTINGS -> SettingsScreen(
+                        enableBlur = settings.enableBlur,
+                        contentBottomPadding = contentBottomPadding,
+                        onOpenModuleInfo = onOpenModuleInfo,
+                        onOpenAbout = onOpenAbout,
+                        onOpenAppearance = onOpenAppearance,
+                    )
                 }
             }
         }
         }
 
-        if (!useRail && floating) {
+        if (!useRail && floating && !navigationVisibility.hidden) {
             AnimatedContent(
                 targetState = tabs,
                 transitionSpec = { fadeIn() togetherWith fadeOut() },
@@ -418,7 +442,7 @@ private fun MainRoot(
                     glassSupported = glassSupported,
                 )
             }
-        } else if (!useRail) {
+        } else if (!useRail && !navigationVisibility.hidden) {
             BlurredBar(
                 backdrop = blurBackdrop,
                 modifier = Modifier.align(Alignment.BottomCenter),
@@ -441,6 +465,7 @@ private fun MainRoot(
             }
         }
     }
+}
 }
 
 @Composable
@@ -479,11 +504,12 @@ private fun KernelStyleFloatingBar(
 
 private enum class MainTab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     HOME("首页", Icons.Rounded.Home),
-    CONFIG("设置", Icons.Rounded.Settings),
-    ABOUT("模块说明", Icons.Rounded.Info),
+    CONFIG("配置", Icons.Rounded.Tune),
+    SETTINGS("设置", Icons.Rounded.Settings),
 }
 
 private const val SECONDARY_MAIN = 0
-private const val SECONDARY_THEME = 1
+private const val SECONDARY_MODULE_INFO = 1
 private const val SECONDARY_FREEFORM_BOUNDARY = 2
 private const val SECONDARY_ABOUT = 3
+private const val SECONDARY_APPEARANCE = 4

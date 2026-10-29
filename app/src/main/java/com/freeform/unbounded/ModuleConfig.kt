@@ -20,7 +20,7 @@ internal object ModuleConfigKeys {
     const val DEFAULT_MARGIN = 196
     const val LEGACY_DEFAULT_MARGIN = 48
     const val MIN_MARGIN = 8
-    const val MAX_MARGIN = 320
+    const val MAX_MARGIN = 2000
 
     val LEGACY_KEYS = arrayOf(
         "security_boundary_enabled",

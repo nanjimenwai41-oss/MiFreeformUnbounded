@@ -46,6 +46,8 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import androidx.compose.ui.unit.dp
 import com.freeform.unbounded.AppSettings
 import com.freeform.unbounded.AppSettingsRepository
@@ -84,6 +86,7 @@ import kotlin.math.roundToInt
 @Composable
 internal fun ThemeScreen(
     settings: AppSettings,
+    contentBottomPadding: Dp,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -97,16 +100,12 @@ internal fun ThemeScreen(
             BlurredBar(blurBackdrop) {
                 TopAppBar(
                     color = barColor,
-                    title = "主题设置",
-                    largeTitle = "主题设置",
+                    title = "外观",
+                    largeTitle = "外观",
                     scrollBehavior = scrollBehavior,
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(
-                                Icons.AutoMirrored.Rounded.ArrowBack,
-                                "返回",
-                                tint = MiuixTheme.colorScheme.primary,
-                            )
+                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回", tint = MiuixTheme.colorScheme.primary)
                         }
                     },
                 )
@@ -127,7 +126,7 @@ internal fun ThemeScreen(
             overscrollEffect = null,
             contentPadding = PaddingValues(
                 12.dp, padding.calculateTopPadding() + 8.dp, 12.dp,
-                24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+                contentBottomPadding,
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

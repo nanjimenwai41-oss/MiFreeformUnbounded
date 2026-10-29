@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import com.freeform.unbounded.AppSettings
 import com.freeform.unbounded.ModuleStatus
+import com.freeform.unbounded.ModuleConfigKeys
 import com.freeform.unbounded.normalizePageScale
 import com.freeform.unbounded.showModuleStatusBadge
 import com.freeform.unbounded.useLiquidGlass
@@ -42,9 +43,9 @@ class FineAdjustmentTest {
     @Test
     fun fineAdjustmentStaysWithinMarginRange() {
         assertEquals(
-            320f,
+            ModuleConfigKeys.MAX_MARGIN.toFloat(),
             applyFineAdjustment(
-                currentValue = 318f,
+                currentValue = ModuleConfigKeys.MAX_MARGIN - 2f,
                 rawValue = 400f,
                 previousRawValue = 0f,
             ),

@@ -19,11 +19,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -80,7 +79,7 @@ internal fun ThemePreviewCard(settings: AppSettings) {
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text("Freeform Unbounded", fontSize = if (useRail) 9.sp else 10.sp, color = colors.onSurface, modifier = Modifier.weight(1f))
-                        Icon(Icons.Rounded.RestartAlt, null, Modifier.size(11.dp), tint = colors.primary)
+                        Icon(androidx.compose.ui.res.painterResource(com.freeform.unbounded.R.drawable.ic_restart), null, Modifier.size(11.dp), tint = colors.primary)
                     }
                     Box(
                         Modifier.padding(horizontal = 7.dp).fillMaxWidth().height(if (useRail) 30.dp else 45.dp)
@@ -126,7 +125,7 @@ internal fun ThemePreviewCard(settings: AppSettings) {
                         .fillMaxWidth(if (floating) 0.86f else 1f).height(if (floating) 28.dp else 34.dp)
                         .clip(navShape)
                         .then(if (glass) Modifier.textureBlur(
-                            backdrop = backdrop!!,
+                            backdrop = backdrop,
                             shape = navShape,
                             blurRadius = 8f,
                             colors = BlurColors(blendColors = listOf(BlendColorEntry(colors.surfaceContainer.copy(alpha = 0.65f)))),
@@ -143,7 +142,7 @@ internal fun ThemePreviewCard(settings: AppSettings) {
 @Composable
 private fun PreviewNavIcons(showBadge: Boolean) {
     val colors = MiuixTheme.colorScheme
-    listOf(Icons.Rounded.Home, Icons.Rounded.Settings, Icons.Rounded.Info).forEachIndexed { index, icon ->
+    listOf(Icons.Rounded.Home, Icons.Rounded.Tune, Icons.Rounded.Settings).forEachIndexed { index, icon ->
         Box {
             Icon(icon, null, Modifier.size(13.dp), tint = if (index == 0) colors.primary else colors.onSurfaceVariantSummary)
             if (index == 0 && showBadge) {

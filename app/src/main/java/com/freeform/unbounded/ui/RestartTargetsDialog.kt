@@ -1,6 +1,18 @@
 package com.freeform.unbounded.ui
 
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.ui.text.style.TextOverflow
+import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.Icon
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -46,18 +59,26 @@ internal fun RestartTargetsDialog(
         }
     }
     var selected by remember { mutableStateOf(emptySet<RestartScope>()) }
+    val scrollState = rememberScrollState()
     LaunchedEffect(show, currentWallpaper) {
         if (show) {
             selected = RestartScopes.currentScopes(currentWallpaper)
+            // OverlayDialog 保留内容状态；等待布局后复位，避免再次打开停留在作用域列表底部。
+            withFrameNanos { }
+            scrollState.scrollTo(0)
         }
     }
 
+    var hidingNavigation by remember { mutableStateOf(show) }
+    LaunchedEffect(show) { if (show) hidingNavigation = true }
+    HideMainNavigation(show || hidingNavigation)
     OverlayDialog(
         show = show,
         title = "选择重启目标",
         summary = currentWallpaper?.let { "当前使用：${it.label}，已置顶。" }
             ?: "当前未使用可识别的超级壁纸，可手动选择作用域。",
         onDismissRequest = onDismiss,
+        onDismissFinished = { hidingNavigation = false },
         maxWidth = 520.dp,
     ) {
         Column(
@@ -65,30 +86,28 @@ internal fun RestartTargetsDialog(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Column(
-                modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                modifier = Modifier.weight(1f, fill = false).verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text("快速组合", style = MiuixTheme.textStyles.subtitle, fontWeight = FontWeight.SemiBold)
-                PresetRow(
-                    first = "系统界面",
-                    second = "系统 + 锁屏",
-                    onFirst = { selected = setOf(RestartScopes.SYSTEM_UI) },
-                    onSecond = { selected = setOf(RestartScopes.SYSTEM_UI, RestartScopes.AOD) },
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("快速组合", modifier = Modifier.weight(1f), style = MiuixTheme.textStyles.subtitle, fontWeight = FontWeight.SemiBold)
+                    TextButton(text = "清空", onClick = { selected = emptySet() }, enabled = selected.isNotEmpty())
+                }
+                val presets = listOf(
+                    "系统界面" to setOf(RestartScopes.SYSTEM_UI),
+                    "系统与锁屏" to setOf(RestartScopes.SYSTEM_UI, RestartScopes.AOD),
+                    "当前壁纸" to RestartScopes.currentWallpapers(currentWallpaper),
+                    "全部壁纸" to (setOf(RestartScopes.MI_WALLPAPER) + RestartScopes.wallpapers),
+                    "当前作用域" to RestartScopes.currentScopes(currentWallpaper),
+                    "全部作用域" to RestartScopes.allStatic.toSet(),
                 )
-                PresetRow(
-                    first = "当前壁纸",
-                    second = "全部壁纸",
-                    onFirst = {
-                        selected = RestartScopes.currentWallpapers(currentWallpaper)
-                    },
-                    onSecond = { selected = setOf(RestartScopes.MI_WALLPAPER) + RestartScopes.wallpapers },
-                )
-                PresetRow(
-                    first = "当前作用域",
-                    second = "全部作用域",
-                    onFirst = { selected = RestartScopes.currentScopes(currentWallpaper) },
-                    onSecond = { selected = RestartScopes.allStatic.toSet() },
-                )
+                presets.chunked(2).forEach { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        row.forEach { (label, targets) ->
+                            PresetButton(label, selected == targets, { selected = targets }, Modifier.weight(1f))
+                        }
+                    }
+                }
 
                 Text("作用域", style = MiuixTheme.textStyles.subtitle, fontWeight = FontWeight.SemiBold)
                 Card(modifier = Modifier.fillMaxWidth()) {
@@ -107,13 +126,13 @@ internal fun RestartTargetsDialog(
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(text = "清空", onClick = { selected = emptySet() }, enabled = selected.isNotEmpty())
-                TextButton(text = "取消", onClick = onDismiss)
+                TextButton(text = "取消", onClick = onDismiss, modifier = Modifier.weight(1f))
                 TextButton(
-                    text = "重启所选（${selected.size}）",
+                    text = "重启（${selected.size}）",
+                    modifier = Modifier.weight(1f),
                     onClick = { onRestart(targets.filter { it in selected }) },
                     enabled = selected.isNotEmpty(),
                     colors = ButtonDefaults.textButtonColorsPrimary(),
@@ -124,25 +143,26 @@ internal fun RestartTargetsDialog(
 }
 
 @Composable
-private fun PresetRow(
-    first: String,
-    second: String,
-    onFirst: () -> Unit,
-    onSecond: () -> Unit,
-) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(
-            text = first,
-            onClick = onFirst,
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.textButtonColorsPrimary(),
-        )
-        TextButton(
-            text = second,
-            onClick = onSecond,
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.textButtonColorsPrimary(),
-        )
+private fun PresetButton(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
+    val colors = MiuixTheme.colorScheme
+    Card(
+        modifier = modifier,
+        cornerRadius = 16.dp,
+        insideMargin = PaddingValues(horizontal = 12.dp, vertical = 14.dp),
+        colors = CardDefaults.defaultColors(
+            color = if (selected) colors.primaryContainer else colors.surfaceContainerHigh,
+        ),
+        onClick = onClick,
+        showIndication = true,
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(label, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = if (selected) colors.onPrimaryContainer else colors.onSurface,
+                style = MiuixTheme.textStyles.footnote1, fontWeight = FontWeight.Medium)
+            AnimatedVisibility(selected, enter = fadeIn() + scaleIn(initialScale = 0.8f), exit = fadeOut() + scaleOut(targetScale = 0.8f)) {
+                Icon(Icons.Rounded.Check, "已选择", Modifier.size(20.dp), tint = colors.primary)
+            }
+        }
     }
 }
 

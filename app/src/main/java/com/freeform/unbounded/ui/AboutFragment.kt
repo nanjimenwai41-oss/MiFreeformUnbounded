@@ -10,6 +10,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.CompositingStrategy
+import top.yukonga.miuix.kmp.blur.BlurBlendMode
+import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import com.freeform.unbounded.ui.theme.isInDarkTheme
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -18,6 +22,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.DesignServices
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -59,6 +64,7 @@ internal fun AboutModuleInfo(
     enableBlur: Boolean,
     contentBottomPadding: Dp,
     onOpenAbout: () -> Unit,
+    onBack: () -> Unit,
 ) {
     val scrollBehavior = MiuixScrollBehavior()
     val blurBackdrop = rememberBlurBackdrop(enableBlur)
@@ -69,6 +75,11 @@ internal fun AboutModuleInfo(
                 title = "模块说明",
                 largeTitle = "模块说明",
                 scrollBehavior = scrollBehavior,
+                navigationIcon = {
+                    top.yukonga.miuix.kmp.basic.IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回", tint = MiuixTheme.colorScheme.primary)
+                    }
+                },
             )
         }
     }) { padding ->
@@ -86,20 +97,27 @@ internal fun AboutModuleInfo(
                 overscrollEffect = null,
             ) {
                 item {
-                    Card(Modifier.fillMaxWidth(), insideMargin = PaddingValues(18.dp)) {
-                        Text("Freeform Unbounded", style = MiuixTheme.textStyles.title4, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "为 HyperOS 提供自由窗口边界保护、锁屏玻璃时钟和超级壁纸景深效果。模块自动管理静态作用域；修改功能后可在首页选择并重启对应进程。",
-                            style = MiuixTheme.textStyles.body1,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
-                        ArrowPreference(
-                            title = "关于与鸣谢",
-                            summary = "版本信息、开源协议和项目链接",
-                            startAction = { Icon(Icons.Rounded.Info, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
-                            onClick = onOpenAbout,
-                        )
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Freeform Unbounded", style = MiuixTheme.textStyles.title4, fontWeight = FontWeight.SemiBold)
+                            Text("为 HyperOS 提供自由窗口边界保护、锁屏玻璃时钟和超级壁纸景深效果。",
+                                style = MiuixTheme.textStyles.body1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        }
+                    }
+                }
+                item {
+                    Card(Modifier.fillMaxWidth()) {
+                        top.yukonga.miuix.kmp.basic.BasicComponent(title = "自由窗口边界保护", summary = "保持窗口最小可见距离，精细调节拖动边界",
+                            startAction = { Icon(Icons.Rounded.AspectRatio, null, Modifier.padding(end = 12.dp), tint = MiuixTheme.colorScheme.primary) })
+                        top.yukonga.miuix.kmp.basic.BasicComponent(title = "玻璃时钟与超级壁纸景深", summary = "修改配置后，在首页选择对应作用域并重启",
+                            startAction = { Icon(Icons.Rounded.Layers, null, Modifier.padding(end = 12.dp), tint = MiuixTheme.colorScheme.primary) })
+                    }
+                }
+                item {
+                    Card(Modifier.fillMaxWidth()) {
+                        ArrowPreference(title = "关于与鸣谢", summary = "版本信息、开源协议和项目链接",
+                            startAction = { Icon(Icons.Rounded.Info, null, Modifier.padding(end = 12.dp), tint = MiuixTheme.colorScheme.primary) },
+                            onClick = onOpenAbout)
                     }
                 }
             }
@@ -125,7 +143,7 @@ internal fun AboutScreen(
     }
     val barBackdrop = rememberBlurBackdrop(enableBlur)
     val flowBackdrop = top.yukonga.miuix.kmp.blur.rememberLayerBackdrop()
-    val flowEnabled = enableBlur && top.yukonga.miuix.kmp.shader.isRuntimeShaderSupported()
+    val flowEnabled = top.yukonga.miuix.kmp.shader.isRuntimeShaderSupported()
     Scaffold(
         topBar = {
             BlurredBar(barBackdrop, blurActive = progress >= 1f) {
@@ -149,6 +167,7 @@ internal fun AboutScreen(
                 modifier = Modifier.fillMaxSize(),
                 bgModifier = Modifier.layerBackdrop(flowBackdrop),
                 effectBackground = flowEnabled,
+                isFullSize = true,
                 alpha = { 1f - progress },
             ) {
                 LazyColumn(
@@ -224,13 +243,26 @@ private fun AboutHero(
     flowEnabled: Boolean,
 ) {
     val colors = MiuixTheme.colorScheme
-    val flow = if (flowEnabled) Modifier.textureBlur(
+    // 与 KernelSU 相同的明暗混色链及 DstIn 内容遮罩，仅线条与文字显色。
+    val dark = isInDarkTheme()
+    val logoBlend = remember(dark) {
+        if (dark) listOf(
+            BlendColorEntry(Color(0xe6a1a1a1), BlurBlendMode.ColorDodge),
+            BlendColorEntry(Color(0x4de6e6e6), BlurBlendMode.LinearLight),
+            BlendColorEntry(Color(0xff1af500), BlurBlendMode.Lab),
+        ) else listOf(
+            BlendColorEntry(Color(0xcc4a4a4a), BlurBlendMode.ColorBurn),
+            BlendColorEntry(Color(0xff4f4f4f), BlurBlendMode.LinearLight),
+            BlendColorEntry(Color(0xff1af200), BlurBlendMode.Lab),
+        )
+    }
+    val flow = if (flowEnabled) Modifier.graphicsLayer {
+        compositingStrategy = CompositingStrategy.Offscreen
+    }.textureBlur(
         backdrop = backdrop,
         shape = androidx.compose.ui.graphics.RectangleShape,
-        blurRadius = 60f,
-        colors = top.yukonga.miuix.kmp.blur.BlurColors(
-            blendColors = listOf(top.yukonga.miuix.kmp.blur.BlendColorEntry(colors.primary.copy(alpha = 0.65f))),
-        ),
+        blurRadius = 150f,
+        colors = top.yukonga.miuix.kmp.blur.BlurColors(blendColors = logoBlend),
         contentBlendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
     ) else Modifier
     fun Modifier.fade(start: Float, end: Float): Modifier = graphicsLayer {
@@ -245,16 +277,18 @@ private fun AboutHero(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Image(
-            painter = painterResource(R.drawable.ic_launcher_foreground),
-            contentDescription = null,
-            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(colors.primary),
-            modifier = Modifier.size(130.dp).fade(0.55f, 1f).then(flow),
-        )
+        Box(Modifier.size(width = 116.dp, height = 100.dp).fade(0.55f, 1f), contentAlignment = Alignment.Center) {
+            Image(
+                painter = painterResource(R.drawable.ic_about_logo),
+                contentDescription = "Freeform Unbounded 镂空标志",
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(colors.onBackground),
+                modifier = Modifier.fillMaxSize().then(flow),
+            )
+        }
         Text(
             text = "Freeform Unbounded",
             color = colors.onBackground,
-            fontSize = 32.sp,
+            fontSize = 35.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
             modifier = Modifier.fade(0.3f, 0.85f).then(flow),

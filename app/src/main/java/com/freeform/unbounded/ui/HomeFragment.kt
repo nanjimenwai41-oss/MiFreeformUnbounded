@@ -18,11 +18,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.HighlightOff
-import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.RemoveCircleOutline
-import androidx.compose.material.icons.rounded.RestartAlt
-import androidx.compose.material.icons.rounded.Wallpaper
-import androidx.compose.material.icons.rounded.Security
+import androidx.compose.ui.res.painterResource
+import com.freeform.unbounded.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -30,7 +28,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,7 +41,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freeform.unbounded.BuildConfig
-import com.freeform.unbounded.ConfigRepository
 import com.freeform.unbounded.ModuleStatus
 import com.freeform.unbounded.ModuleStatusRepository
 import com.freeform.unbounded.SystemUiRestarter
@@ -52,8 +48,6 @@ import com.freeform.unbounded.ui.theme.HyperRed
 import com.freeform.unbounded.ui.theme.HyperRedContainerDark
 import com.freeform.unbounded.ui.theme.HyperRedContainerLight
 import com.freeform.unbounded.ui.theme.isInDarkTheme
-import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -77,9 +71,7 @@ internal fun HomeScreen(
     monetEnabled: Boolean,
 ) {
     val status by ModuleStatusRepository.status.collectAsState()
-    val config by ConfigRepository.config.collectAsState()
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var showRestartMenu by rememberSaveable { mutableStateOf(false) }
     val deviceInfo by rememberDeviceInfo(showRestartMenu)
     val scrollBehavior = MiuixScrollBehavior()
@@ -100,7 +92,7 @@ internal fun HomeScreen(
                             holdDownState = showRestartMenu,
                         ) {
                             Icon(
-                                Icons.Rounded.RestartAlt,
+                                painterResource(R.drawable.ic_restart),
                                 contentDescription = "重启目标",
                                 tint = MiuixTheme.colorScheme.primary,
                             )
@@ -129,13 +121,6 @@ internal fun HomeScreen(
                         monetEnabled = monetEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
                     )
                 }
-                item {
-                    FeatureStatusCard(
-                        freeformEnabled = config.freeformBoundaryEnabled,
-                        glassClockEnabled = config.aodGlassEnabled,
-                        superWallpaperDepthEnabled = config.superWallpaperDepthEnabled,
-                    )
-                }
                 item { DeviceInfoCard(deviceInfo) }
             }
         }
@@ -145,9 +130,7 @@ internal fun HomeScreen(
             onDismiss = { showRestartMenu = false },
             onRestart = { selected ->
                 showRestartMenu = false
-                scope.launch {
-                    SystemUiRestarter.restartSelected(context, selected)
-                }
+                SystemUiRestarter.restartSelected(context, selected)
             },
         )
     }
@@ -296,53 +279,6 @@ private fun StatusFaceLayout(
             fontWeight = FontWeight.Medium,
         )
     }
-}
-
-@Composable
-private fun FeatureStatusCard(
-    freeformEnabled: Boolean,
-    glassClockEnabled: Boolean,
-    superWallpaperDepthEnabled: Boolean,
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        FeatureStatusRow(
-            icon = Icons.Rounded.Security,
-            title = "自由窗口边界保护",
-            enabled = freeformEnabled,
-            summary = if (freeformEnabled) "已开启 · 重启系统界面后生效" else "已关闭 · 保留系统原行为",
-        )
-        FeatureStatusRow(
-            icon = Icons.Rounded.Wallpaper,
-            title = "强制使用玻璃时钟",
-            enabled = glassClockEnabled,
-            summary = if (glassClockEnabled) "已开启 · 修改后重启息屏与锁屏编辑" else "已关闭 · 保留系统原有时钟限制",
-        )
-        FeatureStatusRow(
-            icon = Icons.Rounded.Layers,
-            title = "超级壁纸景深",
-            enabled = superWallpaperDepthEnabled,
-            summary = if (superWallpaperDepthEnabled) "已开启 · 修改后重启系统界面" else "已关闭 · 保留超级壁纸原有行为",
-        )
-    }
-}
-
-@Composable
-private fun FeatureStatusRow(icon: ImageVector, title: String, enabled: Boolean, summary: String) {
-    BasicComponent(
-        title = title,
-        summary = summary,
-        startAction = {
-            Icon(icon, contentDescription = null, modifier = Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary)
-        },
-        endActions = {
-            Text(
-                text = if (enabled) "开启" else "关闭",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = if (enabled) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            )
-        },
-    )
 }
 
 private enum class StatusFace { CHECKING, ACTIVE, PENDING_RESTART, INACTIVE }

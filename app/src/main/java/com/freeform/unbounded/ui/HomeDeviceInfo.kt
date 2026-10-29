@@ -3,12 +3,31 @@ package com.freeform.unbounded.ui
 import android.app.WallpaperManager
 import android.content.Context
 import android.os.Build
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalConfiguration
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.basic.TextButton
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Android
-import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Widgets
+import androidx.compose.material.icons.rounded.Terrain
+import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.NightsStay
+import androidx.compose.material.icons.rounded.Category
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.Landscape
 import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.runtime.Composable
@@ -86,7 +105,7 @@ private fun readDeviceInfo(context: Context): HomeDeviceInfo {
     val currentPackage = runCatching {
         val manager = WallpaperManager.getInstance(context)
         val lockInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            manager.getWallpaperInfo(WallpaperManager.FLAG_LOCK)
+            runCatching { manager.getWallpaperInfo(WallpaperManager.FLAG_LOCK) }.getOrNull()
         } else null
         (lockInfo ?: manager.wallpaperInfo)?.packageName
     }.getOrNull()
@@ -112,22 +131,67 @@ internal fun formatOsVersion(hyperName: String, incremental: String, miuiName: S
     else -> listOf(miuiName, incremental).filter(String::isNotBlank).joinToString(" · ")
 }.ifBlank { "未知版本" }
 
+/** 首页只呈现核心作用域和当前超级壁纸，六个包的版本仍保留在更多中。 */
+internal fun visibleVersionScopes(current: RestartScope?): List<RestartScope> =
+    listOf(RestartScopes.SYSTEM_UI, RestartScopes.AOD, RestartScopes.MI_WALLPAPER) +
+        listOfNotNull(current?.takeIf { it in RestartScopes.wallpapers })
+
+internal fun moreVersionScopes(current: RestartScope?): List<RestartScope> =
+    RestartScopes.wallpapers.filterNot { it == current }
+
 @Composable
 internal fun DeviceInfoCard(info: HomeDeviceInfo?) {
+    var showMore by rememberSaveable { mutableStateOf(false) }
+    var hidingNavigation by remember { mutableStateOf(false) }
+    LaunchedEffect(showMore) { if (showMore) hidingNavigation = true }
+    HideMainNavigation(showMore || hidingNavigation)
     Card(modifier = Modifier.fillMaxWidth()) {
         DeviceInfoRow(Icons.Rounded.Smartphone, "设备", info?.model ?: "正在读取…")
         DeviceInfoRow(Icons.Rounded.Android, "Android", info?.androidVersion ?: "正在读取…")
-        DeviceInfoRow(Icons.Rounded.Info, "澎湃 OS", info?.osVersion ?: "正在读取…")
-        val targets = listOfNotNull(info?.currentWallpaper) + RestartScopes.allStatic.filterNot { it == info?.currentWallpaper }
-        targets.forEach { scope ->
-            val current = scope == info?.currentWallpaper
-            DeviceInfoRow(
-                if (scope in RestartScopes.wallpapers || scope == RestartScopes.MI_WALLPAPER) Icons.Rounded.Wallpaper else Icons.Rounded.Layers,
-                scope.label + if (current) " · 当前使用" else "",
-                info?.scopeVersions?.get(scope) ?: "正在读取…",
-            )
+        DeviceInfoRow(Icons.Rounded.Settings, "澎湃 OS", info?.osVersion ?: "正在读取…")
+        visibleVersionScopes(info?.currentWallpaper).forEach { scope ->
+            ScopeVersionRow(scope, info, current = scope == info?.currentWallpaper)
+        }
+        ArrowPreference(
+            title = "更多",
+            summary = "其他超级壁纸 · ${moreVersionScopes(info?.currentWallpaper).size} 项",
+            onClick = { showMore = true },
+        )
+    }
+    OverlayDialog(
+        show = showMore,
+        title = "超级壁纸版本",
+        onDismissRequest = { showMore = false },
+        onDismissFinished = { hidingNavigation = false },
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Card(Modifier.fillMaxWidth().heightIn(max = (LocalConfiguration.current.screenHeightDp * .55f).dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    moreVersionScopes(info?.currentWallpaper).forEach { ScopeVersionRow(it, info, current = false) }
+                }
+            }
+            TextButton(text = "完成", modifier = Modifier.fillMaxWidth(), onClick = { showMore = false })
         }
     }
+}
+
+@Composable
+private fun ScopeVersionRow(scope: RestartScope, info: HomeDeviceInfo?, current: Boolean) {
+    DeviceInfoRow(
+        when (scope) {
+            RestartScopes.SYSTEM_UI -> Icons.Rounded.Widgets
+            RestartScopes.AOD -> Icons.Rounded.Edit
+            RestartScopes.MI_WALLPAPER -> Icons.Rounded.Layers
+            RestartScopes.SNOW_MOUNTAIN -> Icons.Rounded.Landscape
+            RestartScopes.MOON -> Icons.Rounded.NightsStay
+            RestartScopes.EARTH -> Icons.Rounded.Public
+            RestartScopes.MARS -> Icons.Rounded.Terrain
+            RestartScopes.GEOMETRY -> Icons.Rounded.Category
+            else -> Icons.Rounded.Wallpaper
+        },
+        scope.label + if (current) " · 当前使用" else "",
+        info?.scopeVersions?.get(scope) ?: "正在读取…",
+    )
 }
 
 @Composable

@@ -14,11 +14,12 @@ A freeform-window boundary and lock-screen glass-clock module for HyperOS 3/4. I
 - Modern LibXposed API 102 with static scope support.
 - Class, method, parameter, and return-type validation before every hook; unmatched rules preserve stock behavior and produce diagnostic logs.
 - Hot-reload support and rate-limited diagnostics for different HyperOS builds.
-- A three-page Compose/MIUIX UI: Home, Settings, and About, with 10 restart actions for System UI, Editor, MiWallpaper, six concrete Super wallpapers, or all targets together.
-- Freeform boundary and forced glass-clock switches, edge-distance slider, fine adjustment, reset-to-default action, light/dark themes, system Monet, palette styles, and color specifications.
+- Three main Compose/MIUIX pages: Home, Configuration, and Settings. Appearance controls, module information, and About have dedicated secondary pages.
+- Home shows the current Super-wallpaper version and places the others in More. The restart dialog combines nine scopes, verifies each process exit, handles SystemUI last, and reports inactive targets separately.
+- Freeform boundary and forced glass-clock switches, an 8–2000px edge-distance slider, fine adjustment, and reset-to-default action; Appearance contains light/dark themes, system Monet, palette styles, and color specifications.
 - Floating navigation bar, liquid-glass effects, navigation status badges, and predictive back support.
 - Preserves the glass clock and valid depth mask during wallpaper changes and the lockscreen-to-AOD transition.
-- Connects Super wallpapers to the system's depth and foreground-mask frames for clock occlusion; optimized frame transport reduces stutter and black artifacts while ordinary wallpapers keep stock behavior.
+- Uses actual renderer depth and a single-wallpaper mask for clock occlusion, with receiver renewal and verified Snowmountain dispatch restoration after process recreation; ordinary wallpapers keep stock behavior.
 - Settings remain reachable while the module is inactive; the edge-adjustment card becomes disabled and shows “模块未激活” when tapped.
 - Freeform boundary protection has a dedicated secondary settings page. Its master switch controls edge distance and fine adjustment; when disabled, all subordinate controls are dimmed and non-interactive.
 - Settings and secondary-page feature icons follow the MIUIX theme primary color and use wallpaper-derived Monet colors when Monet is enabled.
