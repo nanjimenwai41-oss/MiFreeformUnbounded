@@ -3,7 +3,6 @@ package com.freeform.unbounded.ui
 import android.os.Build
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,16 +14,13 @@ import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.BlurOn
@@ -41,19 +37,16 @@ import androidx.compose.material.icons.rounded.Swipe
 import androidx.compose.material.icons.rounded.ViewCarousel
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.freeform.unbounded.AppSettings
 import com.freeform.unbounded.AppSettingsRepository
 import com.freeform.unbounded.DarkMode
@@ -78,7 +71,6 @@ import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -171,7 +163,8 @@ internal fun ThemeScreen(
                             )
                             OverlayDropdownPreference(
                                 title = "色彩风格",
-                                summary = settings.paletteStyle.displayName(),
+                                enabled = settings.seedColor != AppSettings.DEFAULT_SEED_COLOR,
+                                summary = if (settings.seedColor == AppSettings.DEFAULT_SEED_COLOR) "跟随系统壁纸色板" else settings.paletteStyle.displayName(),
                                 startAction = { Icon(Icons.Rounded.Style, null, Modifier.padding(end = 6.dp), tint = MiuixTheme.colorScheme.primary) },
                                 items = ThemePaletteStyle.entries.map { it.displayName() },
                                 selectedIndex = ThemePaletteStyle.entries.indexOf(settings.paletteStyle).coerceAtLeast(0),
@@ -180,7 +173,10 @@ internal fun ThemeScreen(
                             val specs = ThemeColorSpec.entries
                             OverlayDropdownPreference(
                                 title = "色彩规范",
-                                summary = if (settings.colorSpec == settings.colorSpec.effectiveFor(settings.paletteStyle)) {
+                                enabled = settings.seedColor != AppSettings.DEFAULT_SEED_COLOR,
+                                summary = if (settings.seedColor == AppSettings.DEFAULT_SEED_COLOR) {
+                                    "由系统动态颜色提供"
+                                } else if (settings.colorSpec == settings.colorSpec.effectiveFor(settings.paletteStyle)) {
                                     settings.colorSpec.displayName()
                                 } else {
                                     "当前风格使用 Material 2021"
@@ -349,59 +345,6 @@ internal fun ThemeScreen(
     }
 }
 
-@Composable
-private fun ThemePreviewCard(settings: AppSettings) {
-    val colors = MiuixTheme.colorScheme
-    val colorSource = when {
-        !settings.monetEnabled || Build.VERSION.SDK_INT < Build.VERSION_CODES.S -> "MIUIX 默认色"
-        settings.seedColor == AppSettings.DEFAULT_SEED_COLOR -> "壁纸动态色"
-        else -> keyColorLabels[keyColorValues.indexOf(settings.seedColor).coerceAtLeast(0)]
-    }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.defaultColors(color = colors.surfaceContainer),
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("主题预览", style = MiuixTheme.textStyles.title4, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "${settings.darkMode.label} · $colorSource · ${settings.paletteStyle.displayName()}",
-                    style = MiuixTheme.textStyles.body2,
-                    color = colors.onSurfaceVariantSummary,
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    "主色" to colors.primary,
-                    "次色" to colors.secondaryVariant,
-                    "强调" to colors.tertiaryContainer,
-                    "背景" to colors.surfaceContainerHighest,
-                ).forEach { (label, color) ->
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .height(38.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(color),
-                        )
-                        Text(
-                            label,
-                            fontSize = 11.sp,
-                            color = colors.onSurfaceVariantSummary,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
 
 private fun ThemePaletteStyle.displayName(): String = when (this) {
     ThemePaletteStyle.TonalSpot -> "Tonal Spot"

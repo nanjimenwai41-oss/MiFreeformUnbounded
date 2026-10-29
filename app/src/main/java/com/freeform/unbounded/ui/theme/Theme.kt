@@ -3,8 +3,6 @@ package com.freeform.unbounded.ui.theme
 import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -29,7 +27,6 @@ internal fun FreeformUnboundedTheme(
     settings: AppSettings,
     content: @Composable () -> Unit,
 ) {
-    val context = LocalContext.current
     val systemDark = isSystemInDarkTheme()
     val dark = when (settings.darkMode) {
         DarkMode.SYSTEM -> systemDark
@@ -38,16 +35,10 @@ internal fun FreeformUnboundedTheme(
     }
     val monetAvailable = settings.monetEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val mode = resolveColorSchemeMode(settings.darkMode, monetAvailable)
-    // 先解析系统 Monet 主色再交给 MIUIX，避免状态卡和动态主题各用一套颜色。
-    val keyColor = when {
-        settings.seedColor != AppSettings.DEFAULT_SEED_COLOR -> Color(settings.seedColor)
-        monetAvailable -> if (dark) {
-            dynamicDarkColorScheme(context).primary
-        } else {
-            dynamicLightColorScheme(context).primary
-        }
-        else -> null
-    }
+    // 默认种子色交给 MIUIX 从平台 Monet 读取。把 Material3 的 primary 再作为
+    // 种子传回 MIUIX 会重新生成一套色板，导致首页图标、卡片和系统动态色不一致。
+    // 只有用户明确选择了种子色时才生成自定义色板。
+    val keyColor = resolveThemeKeyColor(settings.seedColor)
     val colorSpec = settings.colorSpec.effectiveFor(settings.paletteStyle)
 
     // MIUIX 只在 Monet 模式下应用种子色。
@@ -95,6 +86,9 @@ internal fun resolveColorSchemeMode(darkMode: DarkMode, monetEnabled: Boolean): 
     darkMode == DarkMode.LIGHT -> ColorSchemeMode.Light
     else -> ColorSchemeMode.Dark
 }
+
+internal fun resolveThemeKeyColor(seedColor: Int): Color? =
+    seedColor.takeIf { it != AppSettings.DEFAULT_SEED_COLOR }?.let(::Color)
 
 internal fun ThemeColorSpec.effectiveFor(style: ThemePaletteStyle): ThemeColorSpec {
     val supportsSpec2025 = style == ThemePaletteStyle.TonalSpot ||

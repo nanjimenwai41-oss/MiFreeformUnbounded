@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.freeform.unbounded.ui.AboutScreen
+import com.freeform.unbounded.ui.AboutModuleInfo
 import com.freeform.unbounded.ui.BlurredBar
 import com.freeform.unbounded.ui.ConfigScreen
 import com.freeform.unbounded.ui.FreeformBoundaryScreen
@@ -157,6 +158,7 @@ private sealed interface AppRoute : NavKey {
     data object Main : AppRoute
     data object Theme : AppRoute
     data object FreeformBoundary : AppRoute
+    data object About : AppRoute
 }
 
 private val AppBackStackSaver = listSaver<SnapshotStateList<NavKey>, Int>(
@@ -164,6 +166,7 @@ private val AppBackStackSaver = listSaver<SnapshotStateList<NavKey>, Int>(
         when (route) {
             AppRoute.Theme -> SECONDARY_THEME
             AppRoute.FreeformBoundary -> SECONDARY_FREEFORM_BOUNDARY
+            AppRoute.About -> SECONDARY_ABOUT
             else -> SECONDARY_MAIN
         }
     } },
@@ -171,6 +174,7 @@ private val AppBackStackSaver = listSaver<SnapshotStateList<NavKey>, Int>(
         when (value) {
             SECONDARY_THEME -> AppRoute.Theme
             SECONDARY_FREEFORM_BOUNDARY -> AppRoute.FreeformBoundary
+            SECONDARY_ABOUT -> AppRoute.About
             else -> AppRoute.Main
         }
     }.toMutableStateList<NavKey>() },
@@ -237,6 +241,7 @@ private fun FreeformApp(
                         backdrop = backdrop,
                         onOpenTheme = { openSecondary(AppRoute.Theme) },
                         onOpenFreeformBoundary = { openSecondary(AppRoute.FreeformBoundary) },
+                        onOpenAbout = { openSecondary(AppRoute.About) },
                     )
                 }
                 entry<AppRoute.Theme>(swipeDismiss = swipeDismiss) {
@@ -249,6 +254,13 @@ private fun FreeformApp(
                     FreeformBoundaryScreen(
                         enableBlur = settings.enableBlur,
                         moduleReady = status.active || status.pendingRestart,
+                        onBack = { popSecondary() },
+                    )
+                }
+                entry<AppRoute.About>(swipeDismiss = swipeDismiss) {
+                    AboutScreen(
+                        enableBlur = settings.enableBlur,
+                        contentBottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp,
                         onBack = { popSecondary() },
                     )
                 }
@@ -294,6 +306,7 @@ private fun MainRoot(
     backdrop: LayerBackdrop,
     onOpenTheme: () -> Unit,
     onOpenFreeformBoundary: () -> Unit,
+    onOpenAbout: () -> Unit,
 ) {
     LaunchedEffect(mainPagerState.pagerState.currentPage) {
         mainPagerState.syncPage()
@@ -382,10 +395,7 @@ private fun MainRoot(
                         contentBottomPadding = contentBottomPadding,
                         onOpenFreeformBoundary = onOpenFreeformBoundary,
                     )
-                    MainTab.ABOUT -> AboutScreen(
-                        enableBlur = settings.enableBlur,
-                        contentBottomPadding = contentBottomPadding,
-                    )
+                    MainTab.ABOUT -> AboutModuleInfo(onOpenAbout = onOpenAbout, enableBlur = settings.enableBlur, contentBottomPadding = contentBottomPadding)
                 }
             }
         }
@@ -412,6 +422,7 @@ private fun MainRoot(
             BlurredBar(
                 backdrop = blurBackdrop,
                 modifier = Modifier.align(Alignment.BottomCenter),
+                bottom = true,
             ) {
                 NavigationBar(
                     color = if (blurBackdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
@@ -469,9 +480,10 @@ private fun KernelStyleFloatingBar(
 private enum class MainTab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     HOME("首页", Icons.Rounded.Home),
     CONFIG("设置", Icons.Rounded.Settings),
-    ABOUT("关于", Icons.Rounded.Info),
+    ABOUT("模块说明", Icons.Rounded.Info),
 }
 
 private const val SECONDARY_MAIN = 0
 private const val SECONDARY_THEME = 1
 private const val SECONDARY_FREEFORM_BOUNDARY = 2
+private const val SECONDARY_ABOUT = 3

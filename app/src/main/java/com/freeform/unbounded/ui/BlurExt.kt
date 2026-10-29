@@ -10,14 +10,12 @@ import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurColors
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.blur.ProgressiveBlur
+import top.yukonga.miuix.kmp.blur.progressiveTextureBlur
 import top.yukonga.miuix.kmp.shader.isRenderEffectSupported
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/**
- * KernelSU-style blur pipeline: only create a backdrop when the setting and
- * the platform's RenderEffect implementation are both available.
- */
+/** 按设置及平台能力创建背景采样层。 */
 @Composable
 internal fun rememberBlurBackdrop(enableBlur: Boolean): LayerBackdrop? {
     if (!enableBlur || !isRenderEffectSupported()) return null
@@ -28,20 +26,22 @@ internal fun rememberBlurBackdrop(enableBlur: Boolean): LayerBackdrop? {
     }
 }
 
-/** Applies the same translucent texture blur used by KernelSU to a system bar. */
+/** 只渐变模糊背景，标题与操作按钮保持清晰。 */
 @Composable
 internal fun BlurredBar(
     backdrop: LayerBackdrop?,
     modifier: Modifier = Modifier,
     blurActive: Boolean = true,
+    bottom: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     Box(
         modifier = modifier.then(if (blurActive && backdrop != null) {
-            Modifier.textureBlur(
+            Modifier.progressiveTextureBlur(
                 backdrop = backdrop,
                 shape = RectangleShape,
                 blurRadius = 18f,
+                gradient = if (bottom) ProgressiveBlur.Bottom else ProgressiveBlur.Top,
                 colors = BlurColors(
                     blendColors = listOf(
                         BlendColorEntry(

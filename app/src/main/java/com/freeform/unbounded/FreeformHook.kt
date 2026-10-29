@@ -37,51 +37,6 @@ class FreeformHook : XposedModule() {
 
     override fun onModuleLoaded(param: ModuleLoadedParam) {
         currentProcessName.set(param.processName)
-        val startObservation = runCatching {
-            SafetyModePolicy.observeProcessStart(
-                runCatching { getRemotePreferences(ModuleConfigKeys.GROUP) }.getOrNull(),
-                param.processName,
-                onPersistenceFailure = { error ->
-                    log(
-                        Log.ERROR,
-                        TAG,
-                        "Safety mode history persistence failed for ${param.processName}; " +
-                            "automatic trigger is unavailable",
-                        error,
-                    )
-                },
-            )
-        }.getOrElse { error ->
-            // A framework preference implementation can fail during process
-            // bootstrap. Never let the crash guard itself abort module loading.
-            log(
-                Log.ERROR,
-                TAG,
-                "Safety mode observation failed for ${param.processName}; " +
-                    "bypassing hooks in the protected scope",
-                error,
-            )
-            SafetyModePolicy.StartObservation(
-                tracked = SafetyModePolicy.isTrackedProcess(param.processName),
-                // A preference/framework failure must not become a fail-open
-                // path for SystemUI, AOD, or wallpaper renderer processes.
-                enabled = SafetyModePolicy.isTrackedProcess(param.processName),
-                triggered = false,
-                recentStarts = 0,
-                historyPersisted = false,
-            )
-        }
-        if (startObservation.enabled) {
-            val reason = if (!startObservation.historyPersisted) {
-                "Safety guard unavailable; failing closed for ${param.processName}"
-            } else {
-                "Safety mode active; bypassing all hooks for ${param.processName} " +
-                    "recentStarts=${startObservation.recentStarts} " +
-                    "autoTriggered=${startObservation.triggered}"
-            }
-            log(Log.WARN, TAG, reason)
-            return
-        }
         log(
             Log.INFO,
             TAG,
@@ -105,15 +60,6 @@ class FreeformHook : XposedModule() {
 
     override fun onPackageReady(param: PackageReadyParam) {
         val process = currentProcessName.get().orEmpty()
-        if (isSafetyModeEnabled()) {
-            log(
-                Log.WARN,
-                TAG,
-                "Safety mode active; skipped profile installation package=${param.packageName} " +
-                    "process=$process",
-            )
-            return
-        }
         log(
             Log.INFO,
             TAG,
@@ -187,10 +133,6 @@ class FreeformHook : XposedModule() {
     }
 
     override fun onHotReloaded(param: HotReloadedParam) {
-        if (isSafetyModeEnabled()) {
-            log(Log.WARN, TAG, "Safety mode active; skipped hot-reload hook replacement")
-            return
-        }
         log(Log.INFO, TAG, "Hot reloaded with ${param.oldHookHandles.size} old hook(s)")
         param.oldHookHandles.forEach { handle ->
             val action = parseAction(handle.id)
@@ -411,17 +353,6 @@ class FreeformHook : XposedModule() {
         chain: XposedInterface.Chain,
     ): Any? {
         val config = loadedConfig.get() ?: readConfig().also { loadedConfig.compareAndSet(null, it) }
-
-        // The preference is checked on every invocation so a manual or
-        // automatic shutdown also protects already-running target processes.
-        if (isSafetyModeEnabled()) {
-            logLimited(
-                Log.WARN,
-                "safety-bypass:$hookId",
-                "Safety mode active; passed through ${profile.className}#${method.name}",
-            )
-            return chain.proceed()
-        }
 
         val featureEnabled = when {
             rule.action in FREEFORM_ACTIONS -> config.freeformBoundaryEnabled
@@ -1254,30 +1185,14 @@ class FreeformHook : XposedModule() {
             superWallpaperDepthEnabled = runCatching {
                 prefs.getBoolean(ModuleConfigKeys.SUPER_WALLPAPER_DEPTH_ENABLED, false)
             }.getOrDefault(false),
-            safetyModeEnabled = runCatching {
-                prefs.getBoolean(ModuleConfigKeys.SAFETY_MODE_ENABLED, false)
-            }.getOrDefault(false),
-            safetyModeAutoTriggered = runCatching {
-                prefs.getBoolean(ModuleConfigKeys.SAFETY_MODE_AUTO_TRIGGERED, false)
-            }.getOrDefault(false),
         )
         logLimited(
             Log.INFO,
             "config-read:${currentProcessName.get()}",
             "Remote config read process=${currentProcessName.get()} " +
-                "glass=${config.aodGlassEnabled} depth=${config.superWallpaperDepthEnabled} " +
-                "safety=${config.safetyModeEnabled} auto=${config.safetyModeAutoTriggered}",
+                "glass=${config.aodGlassEnabled} depth=${config.superWallpaperDepthEnabled}",
         )
         return config
-    }
-
-    private fun isSafetyModeEnabled(): Boolean = runCatching {
-        SafetyModePolicy.isEnabled(getRemotePreferences(ModuleConfigKeys.GROUP))
-    }.getOrElse {
-        // A tracked target with an unavailable preference channel must stay
-        // unhooked. Otherwise a Binder/service failure after bootstrap could
-        // re-enable the crash-causing hook set in an already-running process.
-        SafetyModePolicy.isTrackedProcess(currentProcessName.get().orEmpty())
     }
 
     private fun applySafety(
@@ -1492,8 +1407,6 @@ class FreeformHook : XposedModule() {
         val freeformBoundaryEnabled: Boolean = false,
         val aodGlassEnabled: Boolean = false,
         val superWallpaperDepthEnabled: Boolean = false,
-        val safetyModeEnabled: Boolean = false,
-        val safetyModeAutoTriggered: Boolean = false,
     )
 
     private data class HorizontalDragSession(

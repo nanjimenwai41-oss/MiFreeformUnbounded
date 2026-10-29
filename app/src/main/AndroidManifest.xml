@@ -6,7 +6,11 @@
 
     <!-- 帧 Provider 按真实调用 UID 校验，显式声明所需包的可见性。 -->
     <queries>
+        <intent>
+            <action android:name="android.service.wallpaper.WallpaperService" />
+        </intent>
         <package android:name="com.android.systemui" />
+        <package android:name="com.miui.aod" />
         <package android:name="com.miui.miwallpaper" />
         <package android:name="com.miui.miwallpaper.moon" />
         <package android:name="com.miui.miwallpaper.snowmountain" />
@@ -24,15 +28,6 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.FreeformUnbounded">
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.diagnostics"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/diagnostic_paths" />
-        </provider>
         <provider
             android:name=".DepthFrameContentProvider"
             android:authorities="${applicationId}.depth-frames"

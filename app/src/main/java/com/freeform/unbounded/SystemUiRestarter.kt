@@ -8,78 +8,53 @@ import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
-object SystemUiRestarter {
-    private const val PACKAGE_AOD = "com.miui.aod"
-    private const val PACKAGE_MI_WALLPAPER = "com.miui.miwallpaper"
+/** 首页重启与设备版本信息共用的静态作用域。 */
+internal data class RestartScope(
+    val id: String,
+    val label: String,
+    val packageName: String,
+    val isProcess: Boolean = false,
+)
+
+internal object RestartScopes {
+    val SYSTEM_UI = RestartScope("system_ui", "系统界面", "com.android.systemui", isProcess = true)
+    val AOD = RestartScope("aod", "息屏与锁屏编辑", "com.miui.aod")
+    val MI_WALLPAPER = RestartScope("miwallpaper", "MiWallpaper", "com.miui.miwallpaper")
+    val MOON = RestartScope("moon", "月球超级壁纸", "com.miui.miwallpaper.moon")
+    val SNOW_MOUNTAIN = RestartScope("snowmountain", "雪山超级壁纸", "com.miui.miwallpaper.snowmountain")
+    val GEOMETRY = RestartScope("geometry", "几何超级壁纸", "com.miui.miwallpaper.geometry")
+    val SATURN = RestartScope("saturn", "土星超级壁纸", "com.miui.miwallpaper.saturn")
+    val EARTH = RestartScope("earth", "地球超级壁纸", "com.miui.miwallpaper.earth")
+    val MARS = RestartScope("mars", "火星超级壁纸", "com.miui.miwallpaper.mars")
+
+    val wallpapers = listOf(MOON, SNOW_MOUNTAIN, GEOMETRY, SATURN, EARTH, MARS)
+    val allStatic = listOf(SYSTEM_UI, AOD, MI_WALLPAPER) + wallpapers
+
+    fun currentWallpapers(current: RestartScope?): Set<RestartScope> =
+        setOf(MI_WALLPAPER) + listOfNotNull(current?.takeIf { it in wallpapers })
+
+    fun currentScopes(current: RestartScope?): Set<RestartScope> =
+        setOf(SYSTEM_UI, AOD) + currentWallpapers(current)
+}
+
+internal object SystemUiRestarter {
     private const val BETWEEN_TARGETS_DELAY_MILLIS = 350L
     private val restartInFlight = AtomicBoolean(false)
 
-    // Each Super wallpaper owns a separate package and can keep preview/render
-    // child processes alive after the shared MiWallpaper service is stopped.
-    private val superWallpaperTargets = listOf(
-        Target.Package("com.miui.miwallpaper.moon"),
-        Target.Package("com.miui.miwallpaper.snowmountain"),
-        Target.Package("com.miui.miwallpaper.geometry"),
-        Target.Package("com.miui.miwallpaper.saturn"),
-        Target.Package("com.miui.miwallpaper.earth"),
-        Target.Package("com.miui.miwallpaper.mars"),
-    )
-
-    suspend fun restartSystemUi(context: Context) {
-        restartTargets(context, "系统界面", listOf(Target.Process("com.android.systemui")))
-    }
-
-    suspend fun restartAod(context: Context) {
-        restartTargets(context, "Editor", listOf(Target.Package(PACKAGE_AOD)))
-    }
-
-    suspend fun restartMiWallpaper(context: Context) {
-        restartTargets(context, "MiWallpaper", listOf(Target.Package(PACKAGE_MI_WALLPAPER)))
-    }
-
-    suspend fun restartMoon(context: Context) {
-        restartTargets(context, "月球超级壁纸", listOf(superWallpaperTargets[0]))
-    }
-
-    suspend fun restartSnowMountain(context: Context) {
-        restartTargets(context, "雪山超级壁纸", listOf(superWallpaperTargets[1]))
-    }
-
-    suspend fun restartGeometry(context: Context) {
-        restartTargets(context, "几何超级壁纸", listOf(superWallpaperTargets[2]))
-    }
-
-    suspend fun restartSaturn(context: Context) {
-        restartTargets(context, "土星超级壁纸", listOf(superWallpaperTargets[3]))
-    }
-
-    suspend fun restartEarth(context: Context) {
-        restartTargets(context, "地球超级壁纸", listOf(superWallpaperTargets[4]))
-    }
-
-    suspend fun restartMars(context: Context) {
-        restartTargets(context, "火星超级壁纸", listOf(superWallpaperTargets[5]))
-    }
-
-    suspend fun restartAll(context: Context) {
-        // Keep this order aligned with the Home actions: SystemUI, Editor,
-        // MiWallpaper, then each concrete Super wallpaper package.
-        restartTargets(
-            context,
-            "全部静态作用域",
-            listOf(
-                Target.Process("com.android.systemui"),
-                Target.Package(PACKAGE_AOD),
-                Target.Package(PACKAGE_MI_WALLPAPER),
-                *superWallpaperTargets.toTypedArray(),
-            ),
-        )
+    suspend fun restartSelected(
+        context: Context,
+        scopes: List<RestartScope>,
+        displayName: String = scopes.joinToString("、") { it.label },
+    ) {
+        val uniqueScopes = scopes.distinctBy(RestartScope::id)
+        if (uniqueScopes.isEmpty()) return
+        restartTargets(context, displayName, uniqueScopes)
     }
 
     private suspend fun restartTargets(
         context: Context,
         displayName: String,
-        targets: List<Target>,
+        scopes: List<RestartScope>,
     ) {
         if (!restartInFlight.compareAndSet(false, true)) {
             Toast.makeText(
@@ -92,12 +67,10 @@ object SystemUiRestarter {
         val appContext = context.applicationContext
         try {
             val results = withContext(Dispatchers.IO) {
-                // Stop one scope at a time and leave a small recovery window so
-                // a batch action cannot turn into a synchronized crash burst.
                 buildList {
-                    targets.forEachIndexed { index, target ->
-                        add(stopTarget(target))
-                        if (index < targets.lastIndex) delay(BETWEEN_TARGETS_DELAY_MILLIS)
+                    scopes.forEachIndexed { index, scope ->
+                        add(stopTarget(scope))
+                        if (index < scopes.lastIndex) delay(BETWEEN_TARGETS_DELAY_MILLIS)
                     }
                 }
             }
@@ -114,10 +87,11 @@ object SystemUiRestarter {
         }
     }
 
-    private fun stopTarget(target: Target): Boolean = runCatching {
-        val command = when (target) {
-            is Target.Process -> "killall ${target.processName}"
-            is Target.Package -> "am force-stop ${target.packageName}"
+    private fun stopTarget(scope: RestartScope): Boolean = runCatching {
+        val command = if (scope.isProcess) {
+            "killall ${scope.packageName}"
+        } else {
+            "am force-stop ${scope.packageName}"
         }
         val process = ProcessBuilder("su", "-c", command)
             .redirectErrorStream(true)
@@ -130,14 +104,4 @@ object SystemUiRestarter {
         process.exitValue() == 0
     }.getOrDefault(false)
 
-    private sealed interface Target {
-        data class Process(val processName: String) : Target
-        data class Package(val packageName: String) : Target
-    }
-
-    /** Kept for callers compiled against the pre-UI-split API. */
-    @Deprecated("Use one of the scoped restart methods")
-    suspend fun restart(context: Context) {
-        restartSystemUi(context)
-    }
 }
