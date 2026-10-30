@@ -4,8 +4,8 @@
 
 A freeform-window boundary and lock-screen glass-clock module for HyperOS 3/4. It is built with Kotlin, Jetpack Compose, MIUIX, and Modern LibXposed API 102. It improves freeform-window movement and forces the lock-screen glass clock in scenes where the stock editor does not support it.
 
-> Latest prerelease: **v3.0.2-beta.2** (version code: **20261079**); current stable release: **v3.0.0**.
-> [Download v3.0.2-beta.2](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.2-beta.2) · [Download stable v3.0.0](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0) · [Read the changelog](CHANGELOG.md)
+> Current stable release: **v3.1.0** (versionCode: **20261095**).
+> [Download v3.1.0](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.1.0) · [Release notes and known issues](releases/v3.1.0.md) · [Read the changelog](CHANGELOG.md)
 
 ## Features
 
@@ -39,7 +39,7 @@ HyperOS minor releases may rename classes or change method signatures. The modul
 
 ## Installation
 
-1. Download the APK from the [v3.0.2-beta.2 prerelease](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.2-beta.2), or choose the [v3.0.0 stable release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0).
+1. Download the APK from the [v3.1.0 stable release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.1.0) and read its compatibility notes and known issues.
 2. Install it with a module manager that supports Modern LibXposed API 102.
 3. The module uses a fixed static scope whose targets are declared by the module; no recommended-app list needs to be maintained in LSPosed.
 4. Reboot the device, or use the Home actions to restart System UI, Editor, MiWallpaper, any of the six concrete Super wallpapers, or all static scopes.
@@ -49,7 +49,7 @@ HyperOS minor releases may rename classes or change method signatures. The modul
 
 ### Edge distance
 
-Open **Freeform boundary protection** from Settings to reach the secondary page. Its **Minimum visible distance** slider controls the minimum number of pixels kept visible when a freeform window reaches a display edge. The default is `196px`; the supported range is `8px`–`320px`. Fine adjustment reduces the effective step per drag for precise tuning. When the master switch is off, the edge-distance section is dimmed and cannot be used.
+Open **Freeform boundary protection** from Configuration to reach the secondary page. Its **Minimum visible distance** slider controls the minimum number of pixels kept visible when a freeform window reaches a display edge. The default is `196px`; the supported range is `8px`–`2000px`. Fine adjustment reduces the effective step per drag for precise tuning. When the master switch is off, the edge-distance section is dimmed and cannot be used.
 
 When the module is inactive, the Settings page remains available, but the edge-adjustment card is disabled. It becomes available after activation or when a restart is pending.
 
@@ -82,11 +82,11 @@ Output:
 app/build/outputs/apk/release/app-release.apk
 ```
 
-The repository's Release build preserves the legacy signing identity used by v3.0.0 for upgrade compatibility; GitHub Actions injects it through the `LEGACY_RELEASE_KEYSTORE_BASE64` Secret. It is still a historical Debug keystore rather than an ideal public-release key, so migrating to a new long-lived Release keystore requires a separate upgrade plan. Verify that the signing configuration, `versionName`, `versionCode`, and `module.prop` are consistent.
+Release retains the published v3.0.2-beta.2 and CI.94 signing identity, injected through `LEGACY_RELEASE_KEYSTORE_BASE64`. The public v3.0.0 APK has a different certificate and cannot be upgraded directly to this channel; the earlier compatibility claim is corrected. The current key remains a historical Debug keystore, so a future long-lived production key needs a separate migration plan. Check your installed channel and preserve data before switching; uninstalling blindly can lose configuration.
 
 ## Personal development flow
 
-Daily changes, CI Debug artifacts, and stable versions are separate things: pushing a development branch runs tests, lint, and a Debug APK build; only a verified `main` branch followed by a `vX.Y.Z` tag triggers the Release APK build and GitHub Release. See [Personal Development and Release Flow](DEVELOPMENT_EN.md) for the exact steps.
+All development and releases happen on `main`. Pushing `main` runs tests, lint, and a CI Debug build; pushing a new annotated `vX.Y.Z` tag after verification triggers the Release APK and GitHub Release. A missing established signing key fails the Release build. Published assets include a versioned APK and SHA-256, with known issues in the release notes. See [Personal Development and Release Flow](DEVELOPMENT_EN.md).
 
 ## Project layout
 

@@ -49,7 +49,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Verify version metadata
-        run: python tools/verify-version.py
+        run: |
+          python -B -m unittest discover -s tools/tests -p 'test_*.py'
+          python tools/verify-version.py
 
       - name: Test native capture and renderer recovery policies
         run: |

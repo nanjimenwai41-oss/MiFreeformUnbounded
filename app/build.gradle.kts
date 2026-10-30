@@ -16,8 +16,8 @@ android {
         applicationId = "com.freeform.unbounded"
         minSdk = 31
         targetSdk = 37
-        versionCode = 20261094
-        versionName = "3.0.2-ci.94"
+        versionCode = 20261095
+        versionName = "3.1.0"
 
         ndk {
             abiFilters += "arm64-v8a"
@@ -44,13 +44,13 @@ android {
             keyPassword = "android"
         }
     }
-    if (legacyReleaseKeystore.isFile) {
-        signingConfigs.create("legacyRelease") {
-            storeFile = legacyReleaseKeystore
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
+    // Always select the established Release identity. Gradle's signing validation
+    // must fail when its keystore is missing instead of switching certificates.
+    signingConfigs.create("legacyRelease") {
+        storeFile = legacyReleaseKeystore
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
     }
 
     buildTypes {
@@ -63,13 +63,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles("proguard-rules.pro")
-            // Preserve the existing release certificate; fall back for machines that
-            // have not configured the ignored legacy keystore yet.
-            signingConfig = if (legacyReleaseKeystore.isFile) {
-                signingConfigs.getByName("legacyRelease")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            signingConfig = signingConfigs.getByName("legacyRelease")
         }
     }
     compileOptions {

@@ -4,6 +4,15 @@
 
 ## 中文
 
+### v3.1.0 · 2026-10-30 · 正式版
+
+- 汇总 3.0.2 预发布期间的超级壁纸景深与玻璃时钟适配、九作用域重启，以及首页、配置、设置和二级外观页改进。新增功能按语义化版本以 MINOR 发布，不将此批改动标为 PATCH。
+- 修复已复现的 SystemUI 晚启动导致静止末帧遮罩丢失；接收端恢复后自动补发，45 秒延迟真机回归通过。完整冷启动与首次解锁前路径尚未完成实机验收。
+- 调整重启弹窗、组合勾选、语义图标、关于页流光及渐变顶栏；边缘距离上限增至 2000px。
+- 统一版本为 `3.1.0` / `20261095`，检查版本递增与 Release 签名，使用带注释标签、人工整理的中英文说明和 SHA-256 附件发布。
+- 审计公开 APK 后更正历史签名说明：本版延续 beta.2/CI.94 签名，公开 v3.0.0 使用另一证书，不能直接覆盖升级。
+- 已知问题：AOD→锁屏偶发单帧轮廓不同步仍在排查，未宣称已消除；壁纸/遮罩配对实验默认关闭。详见 [发布说明](releases/v3.1.0.md)。
+
 ### v3.0.2-ci.94 · 内部测试
 - 接收端晚于壁纸启动或重建时，自动补发当前会话静止壁纸的最后有效遮罩；独立 bootstrap 协议保留真实采样时间，仅允许新接收端首个输入恢复。Provider 支持首次解锁前的内存端点交换，避免访问未解锁的外观配置。
 - 同一窗口的所有时钟在一次绘制前统一采用遮罩快照，再提交对应壁纸事务；已超时释放或过期事务不再更新旧遮罩/回退壁纸。配对实验仍默认关闭，完整开机与逐帧验收另行记录。
@@ -359,6 +368,15 @@
 - 某些设备需要完整重启，而不是仅重启 SystemUI，才能重新加载静态作用域。
 
 ## English
+
+### v3.1.0 · 2026-10-30 · Stable
+
+- Consolidates Super-wallpaper depth and glass-clock support, nine-scope restart controls, and the Home, Configuration, Settings, and secondary Appearance pages developed during the 3.0.2 prereleases. These added features warrant a MINOR release.
+- Recovers a stationary final mask when SystemUI starts late; the device test with a 45-second receiver delay passed. Full cold-boot and pre-unlock behavior has not completed device acceptance.
+- Refines restart selection, semantic icons, About shimmer, and the gradient header; raises the edge-distance limit to 2000px.
+- Aligns metadata at `3.1.0` / `20261095`, checks version progression and Release signing, and publishes from an annotated tag with curated bilingual notes and SHA-256 assets.
+- Corrects historical signing documentation after checking public APKs: this release retains beta.2/CI.94 signing, while public v3.0.0 uses a different certificate and cannot be upgraded in place.
+- Known issue: occasional single-frame contour misalignment during AOD→lockscreen remains under investigation. Wallpaper/mask pairing stays off by default. See [release notes](releases/v3.1.0.md).
 
 ### v3.0.2-ci.94 · Internal testing
 - Replay the current wallpaper session's stationary final mask when SystemUI starts late or restarts. A separate bootstrap protocol preserves capture timestamps and only permits the new receiver's first input to bypass live-frame age rejection. The in-memory provider rendezvous is direct-boot aware and does not open locked appearance preferences.

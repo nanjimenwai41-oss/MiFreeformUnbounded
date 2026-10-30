@@ -4,8 +4,8 @@
 
 面向 HyperOS 3/4 的自由窗口边界与锁屏玻璃时钟模块。项目使用 Kotlin、Jetpack Compose、MIUIX 和 Modern LibXposed API 102，改善自由窗口拖动体验，并在不支持玻璃时钟的场景下强制使用锁屏玻璃时钟。
 
-> 最新预发布：**v3.0.2-beta.2**（版本号：**20261079**）；当前正式版：**v3.0.0**。
-> [下载 v3.0.2-beta.2](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.2-beta.2) · [下载正式版 v3.0.0](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0) · [查看更新日志](CHANGELOG.md)
+> 当前正式版：**v3.1.0**（versionCode：**20261095**）。
+> [下载 v3.1.0](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.1.0) · [发布说明与已知问题](releases/v3.1.0.md) · [查看更新日志](CHANGELOG.md)
 
 ## 主要功能
 
@@ -40,7 +40,7 @@
 
 ## 安装与启用
 
-1. 从 [v3.0.2-beta.2 预发布](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.2-beta.2) 下载 APK，或选择 [v3.0.0 正式版](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.0.0)。
+1. 从 [v3.1.0 正式版](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.1.0) 下载 APK，并阅读发布说明中的兼容性与已知问题。
 2. 使用支持 Modern LibXposed API 102 的模块管理器安装 APK。
 3. 本模块使用固定静态作用域，目标由模块声明自动管理，不需要在 LSPosed 中维护推荐应用列表。
 4. 重启设备，或在首页按需重启系统界面、Editor、MiWallpaper、六个具体超级壁纸，亦可一键重启全部静态作用域。
@@ -50,7 +50,7 @@
 
 ### 边缘距离
 
-进入设置页的“自由窗口边界保护”后，可在二级页面调整“最小可见距离”。该数值控制自由窗口拖到屏幕边缘时保留的最小可见像素，默认值为 `196px`，可调范围为 `8px` 至 `320px`。精细调节会降低滑条每次拖动的有效步进，适合微调。顶部总开关关闭时，边缘距离区域会灰显并且不可点击。
+进入配置页的“自由窗口边界保护”后，可在二级页面调整“最小可见距离”。该数值控制自由窗口拖到屏幕边缘时保留的最小可见像素，默认值为 `196px`，可调范围为 `8px` 至 `2000px`。精细调节会降低滑条每次拖动的有效步进，适合微调。顶部总开关关闭时，边缘距离区域会灰显并且不可点击。
 
 当模块尚未激活时，设置页仍然可打开，但边缘调节卡片会被禁用；模块激活或待重启后，控件恢复可用。
 
@@ -83,11 +83,11 @@ $env:JAVA_HOME = "D:\Program Files\Android\Android Studio\jbr"
 app/build/outputs/apk/release/app-release.apk
 ```
 
-当前仓库的 Release 构建沿用 v3.0.0 的遗留签名，以保持升级兼容；GitHub Actions 通过 `LEGACY_RELEASE_KEYSTORE_BASE64` Secret 注入该密钥。它仍是历史 Debug keystore，不是理想的公开发布密钥；未来迁移到新的长期 Release keystore 时必须单独规划升级迁移。请确认签名密钥、版本号和 `module.prop` 一致。
+Release 延续已公开的 v3.0.2-beta.2 与 CI.94 签名；GitHub Actions 通过 `LEGACY_RELEASE_KEYSTORE_BASE64` Secret 注入该密钥。公开 v3.0.0 APK 使用另一签名，不能直接覆盖升级到此渠道；此前文档的兼容性承诺已更正。现用密钥仍是历史 Debug keystore，未来迁移长期发布密钥需要独立的升级方案。请先确认版本来源与数据迁移，避免盲目卸载导致配置丢失。
 
 ## 个人开发流程
 
-日常改动、CI Debug 工件和正式版本是三个不同概念：推送开发分支会自动运行测试、Lint 并生成 Debug APK；只有在 `main` 验证完成后创建并推送 `vX.Y.Z` 标签，才会触发 Release APK 构建和 GitHub Release。具体步骤见 [个人开发与发布流程](DEVELOPMENT.md)。
+所有开发与发布均在 `main` 完成。推送 `main` 会运行测试、Lint 并生成 CI Debug 工件；验证完成后推送新的带注释 `vX.Y.Z` 标签，才会触发 Release APK 构建和 GitHub Release。Release 缺少既有签名密钥时直接失败；发布附件包含版本命名的 APK、SHA-256 和已知问题。具体步骤见 [个人开发与发布流程](DEVELOPMENT.md)。
 
 ## 项目结构
 
