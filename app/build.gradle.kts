@@ -16,8 +16,8 @@ android {
         applicationId = "com.freeform.unbounded"
         minSdk = 31
         targetSdk = 37
-        versionCode = 20261079
-        versionName = "3.0.2-beta.2"
+        versionCode = 20261094
+        versionName = "3.0.2-ci.94"
 
         ndk {
             abiFilters += "arm64-v8a"
@@ -95,6 +95,11 @@ android {
         ndkBuild {
             path = file("src/main/cpp/Android.mk")
         }
+    }
+    sourceSets.named("main") {
+        // Native sources are built by Gradle. An old manually copied .so must
+        // never shadow the current externalNativeBuild artifact.
+        jniLibs.setSrcDirs(emptyList<String>())
     }
     lint {
         abortOnError = true

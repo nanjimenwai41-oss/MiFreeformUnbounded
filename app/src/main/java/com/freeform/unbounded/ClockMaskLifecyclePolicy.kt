@@ -16,4 +16,8 @@ internal object ClockMaskLifecyclePolicy {
      */
     fun acceptClear(requestGeneration: Long, currentGeneration: Long): Boolean =
         requestGeneration == currentGeneration
+
+    /** 新帧只能替换待处理输入，不能使正在解码的有效帧全部饿死。 */
+    fun acceptFrame(frameGeneration: Long, lastClearGeneration: Long): Boolean =
+        frameGeneration > lastClearGeneration
 }

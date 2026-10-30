@@ -4,6 +4,64 @@
 
 ## 中文
 
+### v3.0.2-ci.94 · 内部测试
+- 接收端晚于壁纸启动或重建时，自动补发当前会话静止壁纸的最后有效遮罩；独立 bootstrap 协议保留真实采样时间，仅允许新接收端首个输入恢复。Provider 支持首次解锁前的内存端点交换，避免访问未解锁的外观配置。
+- 同一窗口的所有时钟在一次绘制前统一采用遮罩快照，再提交对应壁纸事务；已超时释放或过期事务不再更新旧遮罩/回退壁纸。配对实验仍默认关闭，完整开机与逐帧验收另行记录。
+
+### v3.0.2-ci.93 · 内部测试
+- 根据实机调用补充壁纸 Engine 的 SurfaceHolder 观察点；配对传输先确认接收端协议，避免旧版 SystemUI 忽略缓冲事务。实验仍默认关闭，等待真机同帧呈现与逐帧轮廓验收。
+
+### v3.0.2-ci.92 · 内部测试
+- 验证壁纸 BLAST 缓冲区与同帧时钟遮罩配对提交的实验路径，避免仅降低读回延迟仍留下运动窄缝；实验通过设备调试属性启用，尚未作为边缘验收通过。
+
+### v3.0.2-ci.91 · 内部测试
+- 只在精确 ELF、driver/PlatformEGL vtable 及当前 context 身份一致时，复制 Framework 已成功使用的 EGL 创建参数。设备实际请求 ES2/no-error，GL 查询却报告3.2/flags=0，CI90 因此不能重建真实共享参数。
+
+### v3.0.2-ci.90 · 内部测试
+- 根据设备 Framework 的 EGL 创建路径，匹配宿主 GLES 版本、实际 no-error/debug/robust 标志及 reset 策略；CI89 的共享 context 被 EGL_BAD_MATCH 拒绝，本版继续进行真机验证。
+
+### v3.0.2-ci.89 · 内部测试
+- 兼容 Filament 无 EGLConfig 的共享 context，避免把 EGL_CONFIG_ID=0 当作可选择配置；CI88 实机未产生采样，不能作为有效验收。
+
+### v3.0.2-ci.88 · 内部测试
+- 将 GPU fence 等待与 PBO 映射移入共享 EGL context 的专用 worker，不再等下一次 renderer 回调才读回，减少壁纸运动时遮罩落后一帧的窄缝；渲染线程不等待 worker，只保留一个在途采样。
+- CI87 原始录像仍观察到动态轮廓错位，本版须重新进行真实帧龄、性能与原始帧验收，尚不宣称全部解决。
+
+### v3.0.2-ci.87 · 内部测试
+- 将已验证的天空/山体深度簇分离移到 GPU，并从原始屏幕尺寸深度生成 alpha；四个 alpha 像素打包为一个 RGBA 读回纹素，避免低分辨率轮廓放大及 CPU 对每个深度像素执行对数转换。
+- native worker 保持 JNI 连接，直接复制单通道掩码到共享内存；时钟在绘制前采用刚完成解码的最新帧，减少额外等待。该实验仍以真机原始帧检查为准，不宣称已消除所有单帧缺口。
+
+### v3.0.2-ci.86 · 内部测试
+- 修复本地手工拷贝的旧 native 库覆盖 Gradle 新编译库；只打包当前 native 构建产物，并在 CI 和发布流程中校验 APK 与编译库的 ELF build ID。
+- CI85 真机检查发现仍加载旧的 512 遮罩，故 CI85 不作为采样和边缘改进的有效验收；以本版重新测量，景深单帧缺口仍未宣称全部解决。
+
+### v3.0.2-ci.85 · 内部测试
+- 景深遮罩长边从 512 增至 1024，减少低分辨率轮廓放大；CPU 发布与 GPU 采集独立运行，只保留最新待处理帧，避免发布阻塞下一次采样。
+- 采样改用保持相位的 120Hz 上限，避免微小帧间抖动使采样率减半；补充节拍、分辨率及传输边界回归。完整 AOD 转场的边缘和单帧缺口仍须真机逐帧验收。
+
+### v3.0.2-ci.84 · 内部测试
+- 顶栏保留 MIUIX 背景取样，改用全分辨率原生高斯的多档渐变，分别遮罩背景模糊层，不模糊标题和操作按钮；不支持运行时着色器的平台采用实色顶栏。
+- 该实现须在真机上比较块状感、渐变衔接和滚动帧时间；景深边缘仍未通过逐帧验收。
+
+### v3.0.2-ci.83 · 内部测试
+- 首页版本信息使用编辑图标表示息屏与锁屏编辑、图层图标表示 MiWallpaper；右上角使用圆环箭头重启图标。
+- 验证 MIUIX 官方渐进模糊实现；AOD 到锁屏景深边缘仍在原始录像逐帧核验，未宣称通过。
+
+### v3.0.2-ci.82 · 内部测试
+- 根据真机反汇编和内存证据，修复雪山 driver 缓存旧的深度丢弃入口，导致进程重建后不再生成景深遮罩的问题；同时校验精确 ELF 与 driver 身份，保留已安装的第三方入口。
+- 增加缓存入口幂等、driver 重建及拒绝覆盖第三方入口的宿主回归，并扩充只读设备诊断。真机回归进行中。
+
+### v3.0.2-ci.81 · 内部测试
+- 设置一级页仅保留入口，主题、颜色、模糊、导航及手势全部收入二级外观页；首页移除三项功能开启提示，并区分系统界面与 AOD 的版本图标。
+- 顶栏直接采用 MIUIX 渐进模糊默认管线，移除额外混色；修正关于页镂空图标右侧裁切，快速组合改用动态简洁勾选，每次打开弹窗复位至顶部。
+- 将边缘安全距离上限由 320px 扩大至 2000px，保留 196px 默认值及精细调节。
+
+### v3.0.2-ci.80 · 内部测试
+- 重启弹窗隐藏导航、调整组合按钮和右上角图标；首页仅保留当前超级壁纸版本，其余收进更多弹窗。
+- 将外观移至第三个一级设置页，原设置改名配置，整理模块说明，并采用 KernelSU 的名称与镂空图标流光混色链。
+- 重启使用单次 ROOT 会话逐项核对所有包及子进程，区分未运行与失败，SystemUI 最后执行；不再 force-stop 壁纸。
+- 景深接收端后台续期、GL 错误退避恢复，避免输入持续更新使解码饿死；保留单壁纸遮罩渲染路径。真机回归进行中。
+
 ### v3.0.2-beta.2 · 预发布
 - 保持 beta.1 的 HyperOS 4 景深、前景遮挡、玻璃时钟与 AOD 转场适配，并修正 GitHub Actions 的 NDK 发布构建配置。
 - 统一 MIUIX 主题与主界面布局，整理重启操作，补齐页面缩放、导航手势、横屏侧栏及系统状态联动；保留原有翻盖动画和四分之一有效步进微调。
@@ -301,6 +359,64 @@
 - 某些设备需要完整重启，而不是仅重启 SystemUI，才能重新加载静态作用域。
 
 ## English
+
+### v3.0.2-ci.94 · Internal testing
+- Replay the current wallpaper session's stationary final mask when SystemUI starts late or restarts. A separate bootstrap protocol preserves capture timestamps and only permits the new receiver's first input to bypass live-frame age rejection. The in-memory provider rendezvous is direct-boot aware and does not open locked appearance preferences.
+- Adopt one mask snapshot for all clock targets in each window traversal before committing the matching wallpaper transaction. Expired pairs cannot update an old mask or present obsolete buffers. Pairing remains disabled by default; cold-boot and full original-frame checks remain separate acceptance gates.
+
+### v3.0.2-ci.93 · Internal testing
+- Observe the wallpaper Engine's actual SurfaceHolder accessor and negotiate paired-frame support before sending BLAST transactions. The experiment remains off by default pending device presentation and original-frame contour checks.
+
+### v3.0.2-ci.92 · Internal testing
+- Experimentally pair each BLAST wallpaper buffer with its matching clock mask in one draw transaction. This targets temporal contour gaps that remain after faster asynchronous readback; device testing is required before enabling the path by default.
+
+### v3.0.2-ci.91 · Internal test
+- Copy the Framework EGL creation list only after exact ELF, driver/PlatformEGL vtable and current-context identity checks. The device requested ES2/no-error while GL reports 3.2/flags=0, so CI90 could not reconstruct the real sharing parameters from GL queries.
+
+### v3.0.2-ci.90 · Internal test
+- Match the host GLES version and actual no-error/debug/robust flags and reset strategy, following the device Framework EGL creation path. CI89 shared context creation was rejected with EGL_BAD_MATCH; device validation continues in this build.
+
+### v3.0.2-ci.89 · Internal test
+- Support shared contexts for Filament hosts with no EGLConfig. EGL_CONFIG_ID=0 is not a selectable config; CI88 produced no device samples and is not valid acceptance evidence.
+
+### v3.0.2-ci.88 · Internal test
+- Move GPU fence waiting and PBO mapping into a dedicated worker with a shared EGL context, allowing same-frame readback without waiting for the next renderer callback. The renderer never waits for the worker and permits only one in-flight capture.
+- CI87 original frames still showed contour misalignment during motion. This build requires new frame-age, performance and original-frame checks; complete resolution is not claimed.
+
+### v3.0.2-ci.87 · Internal test
+- Move the verified sky/mountain depth-cluster split to GPU and classify original display-resolution depth. Pack four alpha pixels into each RGBA readback texel to avoid enlarged low-resolution contours and per-pixel CPU logarithms.
+- Keep the native worker attached to JNI, copy alpha directly into shared memory, and adopt newly decoded clock masks before drawing. Original-frame device validation remains required; elimination of every single-frame gap is not yet claimed.
+
+### v3.0.2-ci.86 · Internal test
+- Prevent a manually copied stale native library from shadowing Gradle's current native output. Verify matching ELF build IDs between the compiled library and APK in CI and release jobs.
+- Device checks found CI85 still loading the old 512-edge mask. CI85 therefore does not validate cadence or contour improvements; repeat those measurements with this build. Single-frame depth gaps are not yet declared fully resolved.
+
+### v3.0.2-ci.85 · Internal test
+- Increase the clock-mask long edge from 512 to 1024 to reduce enlarged contour pixels. Decouple CPU publishing from GPU capture and retain only the latest pending frame.
+- Use a phase-preserving 120Hz cap so minor frame jitter does not halve capture cadence. Add cadence, resolution, and transport-boundary regressions. Complete AOD transitions still require frame-by-frame device validation for edge errors and brief gaps.
+
+### v3.0.2-ci.84 · Internal test
+- Keep MIUIX backdrop sampling and render the top bar with multiple full-resolution native Gaussian levels. Mask background planes independently so titles and actions stay sharp; use solid bars on platforms without runtime shaders.
+- Validate block artifacts, gradient transitions, and scrolling frame times on the device. Depth edges have not passed frame-by-frame acceptance.
+
+### v3.0.2-ci.83 · Internal test
+- Use an edit icon for the home screen's AOD/lock-screen editor entry, a layers icon for MiWallpaper, and a circular restart arrow for the top-right action.
+- Validate the official MIUIX progressive blur implementation. Depth edges during AOD-to-lock-screen transitions remain under frame-by-frame investigation.
+
+### v3.0.2-ci.82 · Internal test
+- Repair the Snowmountain driver's cached depth-discard dispatch after process recreation, based on device disassembly and memory evidence; validate the exact ELF and driver identity and preserve foreign hooks.
+- Add executable host regressions for idempotence, driver recreation, and foreign dispatch protection, plus read-only device diagnostics. Device regression is in progress.
+
+### v3.0.2-ci.81 · Internal test
+- Keep only entries on Settings and move all appearance controls into a secondary page; remove three feature-status hints from Home and distinguish SystemUI and AOD version icons.
+- Use the default MIUIX progressive-blur pipeline without extra tint; preserve the full outline logo, modernize preset checkmarks, and reset the restart dialog to the top when opened.
+- Expand the edge safety distance from 320px to 2000px while preserving the 196px default and fine adjustment.
+
+### v3.0.2-ci.80 · Internal test
+- Hide navigation during restart dialogs, refine presets and the action icon, and move inactive super-wallpaper versions into More.
+- Promote appearance to the third Settings tab, rename module settings to Configuration, align module information, and match KernelSU's flowing name and outline logo.
+- Verify all selected packages and child processes in one ROOT session, restart SystemUI last, and distinguish inactive targets from failures without force-stopping wallpapers.
+- Renew mask endpoints after provider recreation, recover GL capture after transient errors, and prevent decoder starvation while retaining the single-wallpaper mask pipeline. Device regression is in progress.
 
 ### v3.0.2-beta.2 · Prerelease
 - Keep the HyperOS 4 depth, foreground occlusion, glass-clock, and AOD-transition adaptation from beta.1, and fix the GitHub Actions NDK release-build configuration.

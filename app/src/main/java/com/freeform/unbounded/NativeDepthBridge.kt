@@ -63,6 +63,20 @@ internal object NativeDepthBridge {
 
     /** Called from the EGL swap thread with the current color and depth buffers. */
     @JvmStatic
+    fun onNativeClockMaskFrame(width: Int, height: Int, capturedNanos: Long, alpha: ByteBuffer): Boolean {
+        if (!alpha.isDirect || !ClockMaskTransportPolicy.isValidFrame(width, height, alpha.remaining())) return false
+        if (WallpaperFrameSync.offerMask(width, height, capturedNanos, alpha)) return true
+        val sent = SuperWallpaperFrameBridge.publishClockMask(width, height, alpha, capturedNanos)
+        if (DepthViewDiagnostics.shouldLog("native-clock-mask")) {
+            Log.i(TAG, "CI87 GPU alpha mask=${width}x$height bytes=${alpha.remaining()} sent=$sent")
+        }
+        return sent
+    }
+
+    @JvmStatic
+    fun onNativeBeforeSwap(capturedNanos: Long) = WallpaperFrameSync.beforeSwap(capturedNanos)
+
+    @JvmStatic
     fun onNativeDepthMaskFrame(width: Int, height: Int, capturedNanos: Long, depth: ByteBuffer): Boolean {
         if (!depth.isDirect) return false
         val result = SuperWallpaperDepthCapture.publishNativeClockMask(

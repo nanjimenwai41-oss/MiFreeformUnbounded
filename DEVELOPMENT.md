@@ -25,6 +25,7 @@
 ```powershell
 python .\tools\verify-version.py
 .\gradlew.bat :app\testDebugUnitTest :app\lintRelease :app\assembleRelease --no-daemon --console=plain
+python .\tools\verify-native.py --variant release
 powershell -ExecutionPolicy Bypass -File .\tools\export-experiment.ps1 -Label super-depth-glass
 ```
 

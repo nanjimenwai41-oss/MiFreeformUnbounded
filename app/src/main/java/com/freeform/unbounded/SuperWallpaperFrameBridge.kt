@@ -960,6 +960,16 @@ internal object SuperWallpaperFrameBridge {
         val context = processContext() ?: return false
         return ClockMaskTransport.send(context, System.nanoTime(), width, height, alpha, capturedNanos)
     }
+    fun publishClockMask(width: Int, height: Int, alpha: ByteBuffer, capturedNanos: Long): Boolean {
+        val context = processContext() ?: return false
+        return ClockMaskTransport.send(context, System.nanoTime(), width, height, alpha, capturedNanos)
+    }
+    fun publishClockMask(width: Int, height: Int, memory: android.os.SharedMemory, capturedNanos: Long,
+        transaction: android.view.SurfaceControl.Transaction): Boolean {
+        val context = processContext() ?: return false
+        return ClockMaskTransport.sendPrepared(context, System.nanoTime(), width, height, memory,
+            capturedNanos, transaction)
+    }
     private const val DEPTH_CALLBACK = "com.miui.miwallpaper.IMiuiVideoDepthLastFrameCallback"
     private const val ACTION_DEPTH_FRAME = "com.freeform.unbounded.action.DEPTH_FRAME"
     private const val ACTION_FOREGROUND_FRAME = "com.freeform.unbounded.action.FOREGROUND_FRAME"

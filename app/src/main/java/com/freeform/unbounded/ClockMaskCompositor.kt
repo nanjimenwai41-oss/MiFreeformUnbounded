@@ -12,8 +12,10 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.SharedMemory
 import android.util.Log
-import android.view.Choreographer
 import android.view.View
+import android.view.SurfaceControl
+import android.view.ViewTreeObserver
+import java.util.TreeMap
 import java.lang.ref.WeakReference
 import java.nio.ByteBuffer
 import java.util.WeakHashMap
@@ -35,19 +37,23 @@ internal object ClockMaskCompositor {
     private val pending = AtomicReference<Input?>(null)
     private val latestDecoded = AtomicReference<Decoded?>(null)
     private val decodeRunning = AtomicBoolean(false)
-    private val vsyncScheduled = AtomicBoolean(false)
+    private val applyScheduled = AtomicBoolean(false)
     private val generation = AtomicLong(0)
+    private val lastClearGeneration = AtomicLong(0)
+    private val inputLock = Any()
+    private val surfaceTransactions = TreeMap<Long, SurfaceControl.Transaction>()
     private val latestSequence = AtomicLong(0)
+    private var receivedMaskSinceClear = false // guarded by inputLock
     private val internalEffectWrite = ThreadLocal.withInitial { false }
     private val originalEffects = WeakHashMap<View, RenderEffect?>()
     private val states = WeakHashMap<View, State>()
+    private val rootObservers = WeakHashMap<View, WeakReference<ViewTreeObserver>>()
+    private var releasedThrough = 0L
     private var current: Decoded? = null
     private var power: PowerManager? = null
     @Volatile private var keyguardShowing = false
     @Volatile private var aodTransition = false
     @Volatile private var superWallpaper = false
-    private var installed = false
-    private var lastRegistrationNanos = 0L
     private var lastAppliedSequence = 0L
     private var applied = 0L
     private var replaced = 0L
@@ -60,9 +66,10 @@ internal object ClockMaskCompositor {
     @Volatile private var effectObserverInstalled = false
 
     private data class Input(val sequence: Long, val width: Int, val height: Int,
-        val capturedNanos: Long, val memory: SharedMemory, val generation: Long)
+        val capturedNanos: Long, val memory: SharedMemory, val generation: Long,
+        val bootstrapFirstInput: Boolean, val paired: Boolean)
     private data class Decoded(val sequence: Long, val bitmap: Bitmap, val capturedNanos: Long,
-        val generation: Long, val decodedNanos: Long)
+        val generation: Long, val decodedNanos: Long, val paired: Boolean)
     private class State {
         val shader = RuntimeShader(SHADER)
         var maskEffect: RenderEffect? = null
@@ -106,11 +113,7 @@ internal object ClockMaskCompositor {
             return
         }
         power = context.getSystemService(PowerManager::class.java)
-        val now = System.nanoTime()
-        if (installed || now - lastRegistrationNanos < 1_000_000_000L) return
-        lastRegistrationNanos = now
-        installed = ClockMaskTransport.registerSystemUiReceiver(context, ::receive)
-        if (installed) Log.i(TAG, "CI77 clock-mask SharedMemory/Binder receiver registered")
+        ClockMaskEndpointRegistrar.start(context, ::receive)
     }
 
     /** Private names below are from the captured OS4 DEX and live view tree. */
@@ -158,38 +161,80 @@ internal object ClockMaskCompositor {
         val secondaryId = root.resources.getIdentifier("miui_keyguard_foreground_clock_container", "id", "com.android.systemui")
         if (secondaryId != 0) root.findViewById<View>(secondaryId)?.let(::discover)
         // 非交互先于锁屏淡出结束；AOD 交接不能以它作为移除遮罩的条件。
-        scheduleVsync()
+        scheduleApply()
     }
 
     private fun discover(view: View) {
+        ensureRootPass(view)
         if (states.containsKey(view)) return
         states[view] = State()
         hasTargets = true
-        val weak = WeakReference(view)
-        view.viewTreeObserver.addOnPreDrawListener {
-            val clock = weak.get()
-            val frame = current
-            if (clock != null && frame != null && isActive()) {
-                states[clock]?.let { state -> apply(clock, state, frame) }
-            }
-            true
-        }
+        view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) { ensureRootPass(v); scheduleApply() }
+            override fun onViewDetachedFromWindow(v: View) = Unit
+        })
         Log.i(TAG, "CI77 clock-mask target=${view.javaClass.name} id=${view.id} size=${view.width}x${view.height}")
     }
 
-    private fun receive(sequence: Long, width: Int, height: Int, capturedNanos: Long, memory: SharedMemory?,
-        sessionEnded: Boolean) {
-        if (!advanceSequence(sequence)) { memory?.close(); return }
-        if (memory == null) {
-            clear(sessionEnded, if (sessionEnded) "binder-session-ended" else "binder-producer-clear")
-            return
+    private fun ensureRootPass(view: View) {
+        val root = view.rootView
+        val observer = root.viewTreeObserver
+        if (rootObservers[root]?.get() === observer) return
+        rootObservers[root] = WeakReference(observer)
+        val weakRoot = WeakReference(root)
+        observer.addOnPreDrawListener {
+            val window = weakRoot.get()
+            // Adopt once per window traversal. All clock containers use this
+            // immutable frame before its wallpaper transaction is committed.
+            adoptLatestDecoded()
+            val frame = current
+            if (window != null && frame != null && isActive()) {
+                val started = System.nanoTime()
+                var changed = false
+                states.toList().forEach { (clock, state) ->
+                    if (clock.rootView === window) changed = apply(clock, state, frame) || changed
+                }
+                commitWallpaper(window, frame.sequence)
+                if (changed) recordApplied(frame, started)
+            }
+            true
         }
-        // Treat each accepted mask frame as a newer lifecycle event. If a
-        // previously posted clear has not run on the UI thread yet, it must not
-        // erase this frame (including when the older clear ended a session).
-        val frameGeneration = generation.incrementAndGet()
-        val input = Input(sequence, width, height, capturedNanos, memory, frameGeneration)
-        if (pending.getAndSet(input)?.also { it.memory.close() } != null) replaced++
+    }
+
+    private fun receive(sequence: Long, width: Int, height: Int, capturedNanos: Long, memory: SharedMemory?,
+        sessionEnded: Boolean, transaction: SurfaceControl.Transaction?, bootstrap: Boolean) {
+        synchronized(inputLock) {
+            val firstInput = !receivedMaskSinceClear
+            if (!advanceSequence(sequence)) {
+                memory?.close()
+                if (transaction != null) Log.w(TAG, "CI93 stale paired input sequence=$sequence latest=${latestSequence.get()}")
+                // Dropping an obsolete buffer releases its resources without
+                // presenting it after a newer wallpaper/clock frame.
+                transaction?.close()
+                return
+            }
+            if (transaction != null) surfaceTransactions[sequence] = transaction
+            if (transaction != null) main.postDelayed({
+                val overdue = synchronized(inputLock) { surfaceTransactions.containsKey(sequence) }
+                if (overdue) {
+                    // A failed decode, detached clock or stopped traversal cannot
+                    // leave BLAST's acquired buffer waiting forever. This is an
+                    // explicit experiment failure, never counted as a paired draw.
+                    Log.w(TAG, "CI92 paired consumer deadline sequence=$sequence")
+                    commitWallpaper(null, sequence)
+                }
+            }, 200)
+            if (memory == null) {
+                clear(sessionEnded, if (sessionEnded) "binder-session-ended" else "binder-producer-clear")
+                return
+            }
+            receivedMaskSinceClear = true
+            // 与 clear 的队列清理互斥，旧 clear 不能删除刚到的新会话输入。
+            val frameGeneration = generation.incrementAndGet()
+            val input = Input(sequence, width, height, capturedNanos, memory, frameGeneration,
+                bootstrap && firstInput, transaction != null)
+            if (pending.getAndSet(input)?.also { it.memory.close() } != null) replaced++
+        }
         startDecode()
     }
 
@@ -208,7 +253,9 @@ internal object ClockMaskCompositor {
                 while (true) {
                     val input = pending.getAndSet(null) ?: break
                     try {
-                        if (input.generation != generation.get() || System.nanoTime() - input.capturedNanos > MAX_AGE_NANOS) continue
+                        if (!ClockMaskLifecyclePolicy.acceptFrame(input.generation, lastClearGeneration.get()) ||
+                            !ClockMaskReplayPolicy.acceptAge(System.nanoTime() - input.capturedNanos,
+                                MAX_AGE_NANOS, input.bootstrapFirstInput, input.bootstrapFirstInput)) continue
                         val bitmap = Bitmap.createBitmap(input.width, input.height, Bitmap.Config.ALPHA_8)
                         val mapped = input.memory.mapReadOnly()
                         try {
@@ -224,9 +271,10 @@ internal object ClockMaskCompositor {
                                 bitmap.copyPixelsFromBuffer(aligned)
                             }
                         } finally { SharedMemory.unmap(mapped) }
-                        if (input.generation == generation.get() && input.sequence == latestSequence.get()) {
-                            latestDecoded.set(Decoded(input.sequence, bitmap, input.capturedNanos, input.generation, System.nanoTime()))
-                            scheduleVsync()
+                        if (ClockMaskLifecyclePolicy.acceptFrame(input.generation, lastClearGeneration.get())) {
+                            latestDecoded.set(Decoded(input.sequence, bitmap, input.capturedNanos, input.generation,
+                                System.nanoTime(), input.paired))
+                            scheduleApply()
                         }
                     } catch (error: Exception) {
                         Log.w(TAG, "CI77 clock-mask decode failed", error)
@@ -239,42 +287,52 @@ internal object ClockMaskCompositor {
         }
     }
 
-    private fun scheduleVsync() {
-        if (!vsyncScheduled.compareAndSet(false, true)) return
+    private fun scheduleApply() {
+        if (!applyScheduled.compareAndSet(false, true)) return
         main.post {
-            Choreographer.getInstance().postFrameCallback {
-                vsyncScheduled.set(false)
-                latestDecoded.getAndSet(null)?.takeIf { it.generation == generation.get() }?.let { current = it }
-                val frame = current
-                // producer 重建仅使待解码帧失效；最后已显示的遮罩仍可用于退出动画。
-                if (frame != null && isActive()) {
-                    val started = System.nanoTime()
-                    var changed = false
-                    states.toList().forEach { (view, state) -> changed = apply(view, state, frame) || changed }
-                    if (changed && lastAppliedSequence != frame.sequence) {
-                        lastAppliedSequence = frame.sequence
-                        val appliedAt = System.nanoTime()
-                        if (lastApplyNanos != 0L && appliedAt - lastApplyNanos < 500_000_000L) {
-                            applyIntervals[intervalCount % applyIntervals.size] = appliedAt - lastApplyNanos
-                            intervalCount++
-                        }
-                        lastApplyNanos = appliedAt
-                        applied++
-                        maxApplyMicros = maxOf(maxApplyMicros, (System.nanoTime() - started) / 1000)
-                        maxAgeMillis = maxOf(maxAgeMillis, (System.nanoTime() - frame.capturedNanos) / 1_000_000)
-                        if (applied <= 3 || applied % 180L == 0L) {
-                            val intervals = applyIntervals.take(minOf(intervalCount, applyIntervals.size)).sorted()
-                            val hz = if (intervals.isEmpty()) 0.0 else 1_000_000_000.0 / intervals.average()
-                            val p95 = if (intervals.isEmpty()) 0.0 else intervals[((intervals.size - 1) * .95).toInt()] / 1_000_000.0
-                            Log.i(TAG,
-                            "CI77 clock-mask applied=$applied sequence=${frame.sequence} size=${frame.bitmap.width}x${frame.bitmap.height} " +
-                                "targets=${states.size} updateHz=$hz updateP95Ms=$p95 " +
-                                "maxApplyUs=$maxApplyMicros maxAgeMs=$maxAgeMillis replaced=$replaced colorSurface=false")
-                        }
-                    }
-                } else restoreEffects()
+            applyScheduled.set(false)
+            if (isActive()) {
+                // Only request a traversal here. Mutating/committing individual
+                // targets from this post can split a single window across frames.
+                states.keys.toList().forEach { view -> ensureRootPass(view); view.rootView.invalidate() }
+            } else {
+                restoreEffects()
+                commitWallpaper(states.keys.firstOrNull { it.isAttachedToWindow }, Long.MAX_VALUE)
             }
         }
+    }
+
+    private fun recordApplied(frame: Decoded, started: Long) {
+        if (lastAppliedSequence == frame.sequence) return
+        lastAppliedSequence = frame.sequence
+        val appliedAt = System.nanoTime()
+        if (lastApplyNanos != 0L && appliedAt - lastApplyNanos < 500_000_000L) {
+            applyIntervals[intervalCount % applyIntervals.size] = appliedAt - lastApplyNanos
+            intervalCount++
+        }
+        lastApplyNanos = appliedAt
+        applied++
+        maxApplyMicros = maxOf(maxApplyMicros, (System.nanoTime() - started) / 1000)
+        maxAgeMillis = maxOf(maxAgeMillis, (System.nanoTime() - frame.capturedNanos) / 1_000_000)
+        if (applied <= 3 || applied % 180L == 0L) {
+            val intervals = applyIntervals.take(minOf(intervalCount, applyIntervals.size)).sorted()
+            val hz = if (intervals.isEmpty()) 0.0 else 1_000_000_000.0 / intervals.average()
+            val p95 = if (intervals.isEmpty()) 0.0 else intervals[((intervals.size - 1) * .95).toInt()] / 1_000_000.0
+            Log.i(TAG,
+                "CI87 clock-mask applied=$applied sequence=${frame.sequence} size=${frame.bitmap.width}x${frame.bitmap.height} " +
+                    "targets=${states.size} updateHz=$hz updateP95Ms=$p95 " +
+                    "maxApplyUs=$maxApplyMicros maxAgeMs=$maxAgeMillis replaced=$replaced colorSurface=false")
+        }
+    }
+
+    /** A decode completed during traversal can still enter this display frame. */
+    private fun adoptLatestDecoded() {
+        latestDecoded.getAndSet(null)?.takeIf {
+            ClockMaskLifecyclePolicy.acceptFrame(it.generation, lastClearGeneration.get()) &&
+                (!it.paired || synchronized(inputLock) {
+                    it.sequence > releasedThrough && surfaceTransactions.containsKey(it.sequence)
+                })
+        }?.let { current = it }
     }
 
     private fun isActive(): Boolean = effectObserverInstalled &&
@@ -312,11 +370,50 @@ internal object ClockMaskCompositor {
         return true
     }
 
+    private var pairedCommits = 0L
+    private fun commitWallpaper(view: View?, sequence: Long) {
+        val transaction = synchronized(inputLock) {
+            var combined: SurfaceControl.Transaction? = null
+            val iterator = surfaceTransactions.entries.iterator()
+            while (iterator.hasNext()) {
+                val entry = iterator.next()
+                if (entry.key > sequence) break
+                if (combined == null) combined = entry.value else {
+                    combined.merge(entry.value)
+                    entry.value.close()
+                }
+                iterator.remove()
+            }
+            combined
+        } ?: return
+        try {
+            val attached = view?.rootSurfaceControl
+            if (attached != null && attached.applyTransactionOnDraw(transaction)) {
+                view.rootView.invalidate()
+                if (++pairedCommits <= 3 || pairedCommits % 180L == 0L) {
+                    Log.i(TAG, "CI92 paired wallpaper/clock draw=$pairedCommits sequence=$sequence")
+                }
+            } else {
+                synchronized(inputLock) { releasedThrough = maxOf(releasedThrough, minOf(sequence, latestSequence.get())) }
+                transaction.apply()
+                if (isActive()) Log.w(TAG, "CI92 paired draw unavailable; wallpaper transaction released")
+            }
+        } finally { transaction.close() }
+    }
+
     fun clear(sessionEnded: Boolean = false, reason: String = "producer-reset") {
-        val clearGeneration = generation.incrementAndGet()
-        pending.getAndSet(null)?.memory?.close()
-        latestDecoded.set(null)
+        val clearGeneration = synchronized(inputLock) {
+            val next = generation.incrementAndGet()
+            lastClearGeneration.set(next)
+            pending.getAndSet(null)?.memory?.close()
+            latestDecoded.set(null)
+            receivedMaskSinceClear = false
+            next
+        }
         if (!hasTargets) {
+            if (synchronized(inputLock) { surfaceTransactions.isNotEmpty() }) {
+                main.post { commitWallpaper(null, Long.MAX_VALUE) }
+            }
             if (sessionEnded && ClockMaskLifecyclePolicy.acceptClear(clearGeneration, generation.get())) {
                 superWallpaper = false
                 aodTransition = false
@@ -332,7 +429,7 @@ internal object ClockMaskCompositor {
                 "keyguard=$keyguardShowing aodTransition=$aodTransition " +
                 "interactive=${power?.isInteractive} sequence=${current?.sequence ?: 0}")
             if (retain) {
-                scheduleVsync()
+                scheduleApply()
             } else {
                 if (sessionEnded) {
                     superWallpaper = false
@@ -340,6 +437,7 @@ internal object ClockMaskCompositor {
                 }
                 current = null
                 restoreEffects()
+                commitWallpaper(states.keys.firstOrNull { it.isAttachedToWindow }, Long.MAX_VALUE)
             }
         }
         if (Looper.myLooper() == Looper.getMainLooper()) applyClear.run() else main.post(applyClear)

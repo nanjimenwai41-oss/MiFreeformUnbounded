@@ -51,8 +51,19 @@ jobs:
       - name: Verify version metadata
         run: python tools/verify-version.py
 
+      - name: Test native capture and renderer recovery policies
+        run: |
+          g++ -std=c++17 -c tools/tests/native-capture-recovery-test.cpp -o "$RUNNER_TEMP/capture-recovery.o"
+          for name in native-capture-cadence-test renderer-cached-dispatch-test; do
+            g++ -std=c++17 -DmainCRTStartup=main "tools/tests/$name.cpp" -o "$RUNNER_TEMP/$name"
+            "$RUNNER_TEMP/$name"
+          done
+
       - name: Run unit tests, lint, and debug build
         run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Verify packaged native library
+        run: python tools/verify-native.py --variant debug
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

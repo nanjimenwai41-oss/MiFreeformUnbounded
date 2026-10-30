@@ -94,9 +94,37 @@ class FreeformHook : XposedModule() {
     }
 
     private fun installWallpaperProfiles(classLoader: ClassLoader, process: String) {
+        installWallpaperFrameSyncObserver()
         NativeDepthBridge.install(readConfig().superWallpaperDepthEnabled)
         installProfiles(HookProfiles.miWallpaper, classLoader, process)
         installDiscoveredSuperWallpaperProfiles(classLoader, process)
+    }
+
+    private fun installWallpaperFrameSyncObserver() {
+        if (!readConfig().superWallpaperDepthEnabled) return
+        val engineClass = android.service.wallpaper.WallpaperService.Engine::class.java
+        engineClass.declaredMethods.filter { method ->
+            (method.name == "getSurfaceHolder" && method.parameterCount == 0) ||
+                (method.name == "updateSurface" && method.returnType == Void.TYPE &&
+                method.parameterTypes.toList() in listOf(listOf(
+                    Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType,
+                ), listOf(Boolean::class.javaPrimitiveType, Int::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)))
+        }.forEach { method ->
+            val id = "freeform-unbounded:wallpaper-frame-sync:${methodSignature(method)}"
+            if (!installedHookIds.add(id)) return@forEach
+            runCatching {
+                hook(method).setId(id).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(XposedInterface.Hooker { chain ->
+                        val result = chain.proceed()
+                        (chain.getThisObject() as? android.service.wallpaper.WallpaperService.Engine)
+                            ?.let(WallpaperFrameSync::observeEngine)
+                        result
+                    })
+            }.onFailure {
+                installedHookIds.remove(id)
+                log(Log.WARN, TAG, "CI92 wallpaper frame-sync observer failed", it)
+            }
+        }
     }
 
     /** Public Android API hook: retain the actual stock effect instead of guessing a private getter. */
@@ -913,7 +941,10 @@ class FreeformHook : XposedModule() {
                         val resizeHeight = args.getOrNull(1) as? Int ?: 0
                         SuperWallpaperDepthCapture.configure(resizeWidth, resizeHeight)
                     }
-                    "nSetSurface" -> NativeDepthBridge.resetReadback()
+                    "nSetSurface" -> {
+                        NativeDepthBridge.resetReadback()
+                        WallpaperFrameSync.bindSurface(args.firstOrNull { it is android.view.Surface } as? android.view.Surface)
+                    }
                     else -> Unit
                 }
                 val renderTimestamp = args.firstOrNull() as? Long

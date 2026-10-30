@@ -5,6 +5,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ClockMaskLifecyclePolicyTest {
+    @Test fun fasterProducerCannotStarveTheInFlightDecoder() {
+        assertTrue(ClockMaskLifecyclePolicy.acceptFrame(10, 5))
+        assertTrue(ClockMaskLifecyclePolicy.acceptFrame(11, 5))
+    }
+
+    @Test fun clearedFramesAreRejectedButNewSessionCanRecover() {
+        assertFalse(ClockMaskLifecyclePolicy.acceptFrame(4, 5))
+        assertFalse(ClockMaskLifecyclePolicy.acceptFrame(5, 5))
+        assertTrue(ClockMaskLifecyclePolicy.acceptFrame(6, 5))
+    }
+
     @Test fun producerStopDuringLockscreenFadeKeepsTheLastMask() {
         // 进入 AOD 的非交互事件不能改变锁屏仍可见这一事实。
         assertTrue(ClockMaskLifecyclePolicy.retainMask(false, true, true, false))

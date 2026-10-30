@@ -10,7 +10,10 @@ class ClockMaskTransportPolicyTest {
         assertTrue(ClockMaskTransportPolicy.isValidFrame(236, 512, 120_832))
         assertFalse(ClockMaskTransportPolicy.isValidFrame(236, 512, 483_328))
         assertFalse(ClockMaskTransportPolicy.isValidFrame(236, 512, 120_831))
-        assertFalse(ClockMaskTransportPolicy.isValidFrame(513, 1, 513))
+        assertTrue(ClockMaskTransportPolicy.isValidFrame(472, 1024, 483_328))
+        assertTrue(ClockMaskTransportPolicy.isValidFrame(1156, 2510, 2_901_560))
+        assertFalse(ClockMaskTransportPolicy.isValidFrame(4097, 1, 4097))
+        assertFalse(ClockMaskTransportPolicy.isValidFrame(4096, 4096, 16_777_216))
         assertFalse(ClockMaskTransportPolicy.isValidFrame(0, 512, 0))
         assertFalse(ClockMaskTransportPolicy.isValidFrame(Int.MAX_VALUE, Int.MAX_VALUE, 1))
     }

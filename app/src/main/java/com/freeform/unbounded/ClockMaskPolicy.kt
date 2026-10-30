@@ -9,7 +9,9 @@ import kotlin.math.roundToInt
 internal object ClockMaskPolicy {
     data class Size(val width: Int, val height: Int)
 
-    fun outputSize(sourceWidth: Int, sourceHeight: Int, maxDimension: Int = 512): Size? {
+    const val MAX_DIMENSION = 1024
+
+    fun outputSize(sourceWidth: Int, sourceHeight: Int, maxDimension: Int = MAX_DIMENSION): Size? {
         if (sourceWidth <= 0 || sourceHeight <= 0 || maxDimension <= 0) return null
         val scale = min(1f, maxDimension.toFloat() / max(sourceWidth, sourceHeight))
         return Size(

@@ -49,6 +49,9 @@ jobs:
       - name: Run release checks and build
         run: ./gradlew :app:testDebugUnitTest :app:lintRelease :app:assembleRelease --no-daemon --stacktrace
 
+      - name: Verify packaged native library
+        run: python tools/verify-native.py --variant release
+
       - name: Publish GitHub Release with APK
         env:
           GH_TOKEN: ${{ github.token }}

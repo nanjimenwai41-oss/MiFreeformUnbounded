@@ -6,7 +6,7 @@
 #include <sys/system_properties.h>
 
 #include <algorithm>
-#include <cmath>
+#include <chrono>
 #include <condition_variable>
 #include <cstring>
 #include <cstdio>
@@ -20,6 +20,7 @@ constexpr char kTag[] = "FreeformUnbounded";
 JavaVM* vm = nullptr;
 jclass bridge = nullptr;
 jmethodID frameMethod = nullptr;
+jmethodID beforeSwapMethod = nullptr;
 std::mutex mutex;
 std::condition_variable condition;
 std::once_flag worker;
@@ -31,7 +32,18 @@ struct Frame {
 std::unique_ptr<Frame> pending;
 
 void publish(Frame& frame) {
-    // 诊断快照只在 ROOT 设置了真实宿主 cache 路径时保存一次；不进入可见景深链。
+    const size_t stride = (static_cast<size_t>(frame.width) + 3) & ~size_t(3);
+    const size_t count = static_cast<size_t>(frame.width) * frame.height;
+    if (!count || frame.rawDepth.size() != stride * frame.height) return;
+    std::vector<uint8_t> alpha(count);
+    for (int y = 0; y < frame.height; ++y) {
+        std::memcpy(alpha.data() + static_cast<size_t>(y) * frame.width,
+            frame.rawDepth.data() + static_cast<size_t>(frame.height - 1 - y) * stride, frame.width);
+    }
+    const size_t selected = std::count(alpha.begin(), alpha.end(), uint8_t(255));
+    // Preserve the existing foreground-coverage rejection at full resolution.
+    if (!selected || selected * 100 >= count * 95) return;
+    // A root-enabled diagnostic captures the actual alpha, never wallpaper color.
     static bool probeSaved = false;
     char probe[PROP_VALUE_MAX] = {};
     __system_property_get("debug.freeform.depth_probe", probe);
@@ -42,50 +54,26 @@ void publish(Frame& frame) {
             const bool ok = std::fwrite(data, 1, size, file) == size;
             return std::fclose(file) == 0 && ok;
         };
-        // 跳过初始空帧，完整保留同一时刻的 RGBA 与原始浮点深度。
-        if (std::any_of(frame.rawDepth.begin(), frame.rawDepth.end(), [](uint8_t b) { return b != 0; })) {
-            const int dimensions[] = {frame.width, frame.height};
-            probeSaved = save(".f32", frame.rawDepth.data(), frame.rawDepth.size()) &&
-                save(".size", dimensions, sizeof(dimensions));
-            __android_log_print(ANDROID_LOG_INFO, kTag, "CI63 paired probe saved=%d prefix=%s", probeSaved, probe);
-        }
-    }
-    // 保留零背景；正深度用对数映射保存整个 24 位逆向 Z 的有效范围。
-    // 解码在工作线程执行，渲染线程只复制 GPU 已完成的小尺寸 PBO。
-    const size_t count = frame.rawDepth.size() / 4;
-    std::vector<uint16_t> depth(count);
-    float minimum = 1, maximum = 0;
-    size_t geometry = 0, invalid = 0;
-    for (size_t i = 0; i < count; ++i) {
-        const uint8_t* p = frame.rawDepth.data() + i * 4;
-        const uint32_t bits = uint32_t(p[0]) | uint32_t(p[1]) << 8 |
-            uint32_t(p[2]) << 16 | uint32_t(p[3]) << 24;
-        float value;
-        std::memcpy(&value, &bits, sizeof(value));
-        if (!std::isfinite(value) || value < 0 || value > 1) { ++invalid; continue; }
-        if (value <= 0) continue;
-        minimum = std::min(minimum, value);
-        maximum = std::max(maximum, value);
-        ++geometry;
-        depth[i] = static_cast<uint16_t>(std::clamp(
-            (1.0f + std::log2(value) / 24.0f) * 65535.0f, 1.0f, 65535.0f));
+        const int dimensions[] = {frame.width, frame.height};
+        probeSaved = save(".alpha", alpha.data(), alpha.size()) && save(".size", dimensions, sizeof(dimensions));
+        __android_log_print(ANDROID_LOG_INFO, kTag, "CI87 alpha probe saved=%d prefix=%s", probeSaved, probe);
     }
     static unsigned frames = 0;
     const unsigned sample = ++frames;
     if (sample <= 5 || sample % 90 == 0) {
         __android_log_print(ANDROID_LOG_INFO, kTag,
-            "CI62 pre-discard depth frame=%u size=%dx%d min=%g max=%g geometry=%zu/%zu invalid=%zu",
-            sample, frame.width, frame.height, minimum, maximum, geometry, count, invalid);
+            "CI87 GPU mask frame=%u size=%dx%d selected=%zu/%zu ageUs=%lld",
+            sample, frame.width, frame.height, selected, count,
+            static_cast<long long>((std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count() - frame.capturedNanos) / 1000));
     }
-    // Sky 是写深度的网格；由 Kotlin 根据本帧实测深度簇分离，不能要求背景为零。
-    if (invalid || !geometry) return;
     JNIEnv* env = nullptr;
     bool attached = false;
     if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
         if (vm->AttachCurrentThread(&env, nullptr) != JNI_OK) return;
         attached = true;
     }
-    jobject depthBuffer = env->NewDirectByteBuffer(depth.data(), depth.size() * sizeof(uint16_t));
+    jobject depthBuffer = env->NewDirectByteBuffer(alpha.data(), alpha.size());
     if (depthBuffer && bridge && frameMethod) {
         env->CallStaticBooleanMethod(bridge, frameMethod, frame.width, frame.height,
             static_cast<jlong>(frame.capturedNanos), depthBuffer);
@@ -107,12 +95,25 @@ void queueFrame(int width, int height, int64_t capturedNanos, std::vector<uint8_
     condition.notify_one();
 }
 
-void swap(const char*, EGLDisplay, EGLSurface) { gpu_depth::atSwap(); }
+void swap(const char*, EGLDisplay, EGLSurface) {
+    gpu_depth::atSwap();
+    JNIEnv* env = nullptr;
+    bool attached = false;
+    if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+        if (vm->AttachCurrentThread(&env, nullptr) != JNI_OK) return;
+        attached = true;
+    }
+    env->CallStaticVoidMethod(bridge, beforeSwapMethod, static_cast<jlong>(gpu_depth::takeSwapCapture()));
+    if (env->ExceptionCheck()) { env->ExceptionDescribe(); env->ExceptionClear(); }
+    if (attached) vm->DetachCurrentThread();
+}
 
 jboolean install(JNIEnv*, jclass) {
     std::call_once(worker, [] {
         gpu_depth::initialize(queueFrame);
         std::thread([] {
+            JNIEnv* env = nullptr;
+            if (vm->AttachCurrentThread(&env, nullptr) != JNI_OK) return;
             for (;;) {
                 std::unique_ptr<Frame> frame;
                 {
@@ -121,7 +122,6 @@ jboolean install(JNIEnv*, jclass) {
                     frame = std::move(pending);
                 }
                 publish(*frame);
-                gpu_depth::publisherFinished();
             }
         }).detach();
     });
@@ -145,14 +145,15 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVm, void*) {
     if (!local) return JNI_ERR;
     bridge = reinterpret_cast<jclass>(env->NewGlobalRef(local));
     env->DeleteLocalRef(local);
-    frameMethod = env->GetStaticMethodID(bridge, "onNativeDepthMaskFrame",
+    frameMethod = env->GetStaticMethodID(bridge, "onNativeClockMaskFrame",
         "(IIJLjava/nio/ByteBuffer;)Z");
+    beforeSwapMethod = env->GetStaticMethodID(bridge, "onNativeBeforeSwap", "(J)V");
     static const JNINativeMethod methods[] = {
         {"installNativeHooks", "()Z", reinterpret_cast<void*>(install)},
         {"installFrameworkLoaderProbeNative", "()Z", reinterpret_cast<void*>(loaderProbe)},
         {"setEnabled", "(Z)V", reinterpret_cast<void*>(setEnabled)},
         {"resetNativeReadback", "()V", reinterpret_cast<void*>(reset)},
     };
-    if (!frameMethod || env->RegisterNatives(bridge, methods, 4) != JNI_OK) return JNI_ERR;
+    if (!frameMethod || !beforeSwapMethod || env->RegisterNatives(bridge, methods, 4) != JNI_OK) return JNI_ERR;
     return JNI_VERSION_1_6;
 }

@@ -27,7 +27,9 @@ class ClockMaskPolicyTest {
     @Test
     fun outputIsBoundedAndInvalidDimensionsAreRejected() {
         assertEquals(ClockMaskPolicy.Size(236, 512), ClockMaskPolicy.outputSize(236, 512))
-        assertEquals(ClockMaskPolicy.Size(512, 256), ClockMaskPolicy.outputSize(1024, 512))
+        assertEquals(ClockMaskPolicy.Size(1024, 512), ClockMaskPolicy.outputSize(1024, 512))
+        assertEquals(ClockMaskPolicy.Size(472, 1024), ClockMaskPolicy.outputSize(1156, 2510))
+        assertEquals(ClockMaskPolicy.Size(512, 256), ClockMaskPolicy.outputSize(1024, 512, maxDimension = 512))
         assertFalse(ClockMaskPolicy.outputSize(0, 10) != null)
     }
 }

@@ -1,4 +1,5 @@
 #include "VerifiedRendererHook.h"
+#include "RendererDispatchPolicy.h"
 
 #include <android/log.h>
 #include <android/trace.h>
@@ -30,6 +31,10 @@ constexpr uint8_t kVendorHookBuildId[] = {
 constexpr uintptr_t kEngineGlobal = 0x4223c0; // _ZN2MI7GEngineE
 constexpr uintptr_t kSwapSlot = 0x420590; // R_AARCH64_JUMP_SLOT eglSwapBuffers
 constexpr uintptr_t kInvalidateSlot = 0x41c958; // R_AARCH64_GLOB_DAT glInvalidateFramebuffer
+// 同一 ELF 的 0x36c190..0x36c1a4 设置 OpenGLDriver vtable；0x3698d0 从
+// driver+0xe98 读取缓存入口，随后 0x3698dc blr。仅改 GOT 会漏掉先创建的 driver。
+constexpr uintptr_t kDriverVtable = 0x4142a0;
+constexpr uintptr_t kDriverInvalidate = 0xe98;
 using Swap = EGLBoolean (*)(EGLDisplay, EGLSurface);
 using Invalidate = void (*)(GLenum, GLsizei, const GLenum*);
 Invalidate originalInvalidate = nullptr;
@@ -193,7 +198,6 @@ bool replaceSlot(uintptr_t address, Function expected, Function replacement) {
 
 bool install(SwapObserver observer, EndPassObserver endPass) {
     std::lock_guard<std::mutex> lock(installMutex);
-    if (installed.load()) return true;
     uintptr_t base = 0;
     dl_iterate_phdr(findModule, &base);
     if (base == 0 || observer == nullptr) return false;
@@ -207,12 +211,26 @@ bool install(SwapObserver observer, EndPassObserver endPass) {
             "CI59 verified renderer backend=%u; GLES hook skipped", backend);
         return false;
     }
+    // FEngine 的首字段为实际 driver；同时核验构造器写入的精确 vtable，
+    // 不扫描堆、不猜其他 ABI。nInit 后再次调用时也修复新建 driver 的缓存。
+    void* driver = nullptr;
+    std::memcpy(&driver, engine, sizeof(driver));
+    if (driver == nullptr || *reinterpret_cast<uintptr_t*>(driver) != base + kDriverVtable) return false;
+    auto* cachedSlot = reinterpret_cast<Invalidate*>(static_cast<uint8_t*>(driver) + kDriverInvalidate);
+    if (installed.load()) {
+        const bool repaired = replaceExpectedDispatch(cachedSlot, originalInvalidate, onInvalidate);
+        __android_log_print(repaired ? ANDROID_LOG_INFO : ANDROID_LOG_WARN, kTag,
+            "CI82 renderer cached dispatch refresh driver=%p cache=%p ready=%d", driver,
+            reinterpret_cast<void*>(__atomic_load_n(cachedSlot, __ATOMIC_ACQUIRE)), repaired);
+        return repaired;
+    }
     auto invalidate = *reinterpret_cast<Invalidate*>(base + kInvalidateSlot);
     if (!pointerBelongsTo(reinterpret_cast<void*>(invalidate), "libGLESv2.so")) {
         __android_log_print(ANDROID_LOG_WARN, kTag,
             "CI61 verified renderer invalidate slot rejected=%p", invalidate);
         return false;
     }
+    if (__atomic_load_n(cachedSlot, __ATOMIC_ACQUIRE) != invalidate) return false;
     uintptr_t vendorBase = 0;
     dl_iterate_phdr(findVendorHook, &vendorBase);
     if (vendorBase == 0) return false;
@@ -227,16 +245,58 @@ bool install(SwapObserver observer, EndPassObserver endPass) {
     observeSwap = observer;
     observeEndPass = endPass;
     endDiscardReturn = base + 0x3698e0;
+    const bool cachedHook = replaceExpectedDispatch(cachedSlot, invalidate, onInvalidate);
+    if (!cachedHook) return false;
+    const bool discardHook = replaceSlot(base + kInvalidateSlot, invalidate, onInvalidate);
+    if (!discardHook) {
+        replaceExpectedDispatch(cachedSlot, onInvalidate, invalidate);
+        return false;
+    }
     void* task = hookSingle(frameworkName.c_str(), nullptr, "eglSwapBuffers",
         reinterpret_cast<void*>(onVendorSwap), onVendorHooked, nullptr);
-    if (task == nullptr) return false;
-    const bool discardHook = replaceSlot(base + kInvalidateSlot, invalidate, onInvalidate);
+    if (task == nullptr) {
+        replaceSlot(base + kInvalidateSlot, onInvalidate, invalidate);
+        replaceExpectedDispatch(cachedSlot, onInvalidate, invalidate);
+        return false;
+    }
     installed.store(true);
     __android_log_print(ANDROID_LOG_INFO, kTag,
         "CI61 verified renderer registered buildId=e4014aed2593c4269e2960bc4c588cace22d57ff "
-        "base=%p engine=%p backend=%u vendor=%p task=%p slot=%p discard=%d",
+        "base=%p engine=%p backend=%u vendor=%p task=%p slot=%p discard=%d driver=%p cached=%d",
         reinterpret_cast<void*>(base), engine, backend, reinterpret_cast<void*>(vendorBase), task,
-        *reinterpret_cast<void**>(base + kSwapSlot), discardHook);
+        *reinterpret_cast<void**>(base + kSwapSlot), discardHook, driver, cachedHook);
     return true;
+}
+
+bool copyCurrentContextAttributes(std::vector<EGLint>& attributes) {
+    std::lock_guard<std::mutex> lock(installMutex);
+    uintptr_t base = 0;
+    dl_iterate_phdr(findModule, &base);
+    if (!installed.load() || !base) return false;
+    auto* engine = *reinterpret_cast<uint8_t**>(base + kEngineGlobal);
+    if (!engine) return false;
+    auto* driver = *reinterpret_cast<uint8_t**>(engine);
+    if (!driver || *reinterpret_cast<uintptr_t*>(driver) != base + kDriverVtable) return false;
+    // Verified constructor 0x36c178/0x36c198 stores PlatformEGL at driver+0xc8.
+    // Its createDriver path saves display/context at +0x50/+0x58 and the exact
+    // successful EGL attribute vector at +0x80/+0x88 (0x363344..0x36335c).
+    auto* platform = *reinterpret_cast<uint8_t**>(driver + 0xc8);
+    if (!platform || *reinterpret_cast<uintptr_t*>(platform) != base + 0x413f90) return false;
+    const auto display = *reinterpret_cast<EGLDisplay*>(platform + 0x50);
+    const auto context = *reinterpret_cast<EGLContext*>(platform + 0x58);
+    if (display != eglGetCurrentDisplay() || context != eglGetCurrentContext()) return false;
+    const auto begin = *reinterpret_cast<uintptr_t*>(platform + 0x80);
+    const auto end = *reinterpret_cast<uintptr_t*>(platform + 0x88);
+    if (!begin || end < begin || end - begin > 256 || (end - begin) % sizeof(EGLint)) return false;
+    const auto* values = reinterpret_cast<const EGLint*>(begin);
+    const size_t count = (end - begin) / sizeof(EGLint);
+    for (size_t index = 0; index < count; index += 2) {
+        if (values[index] == EGL_NONE) {
+            attributes.assign(values, values + index + 1);
+            return !attributes.empty();
+        }
+        if (index + 1 >= count) return false;
+    }
+    return false;
 }
 }
