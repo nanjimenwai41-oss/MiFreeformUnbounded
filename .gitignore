@@ -73,7 +73,6 @@ log.txt
 /classes*.dex
 /flag/
 /assets/
-/CLAUDE.md
 /CONTEXT_SUMMARY.md
 /experiments202610*.txt
 /local.properties

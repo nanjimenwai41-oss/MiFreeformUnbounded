@@ -4,10 +4,11 @@
 
 ## 中文
 
-### 未发布
+### v3.1.1-rc.1 · 2026-10-31 · 预发布
 
 - 统一九项静态作用域，补齐 `scope.list` 中遗漏的六个超级壁纸包；保留 `staticScope=true`，与重启目标和包可见性声明一致。
 - 模块运行状态按同一份静态目标识别主进程和子进程，避免把包名前缀相似的无关应用误判为已激活；同步中英文说明并补充声明一致性回归测试。
+- 版本信息改从单一文件生成，APK 内同时校验 Android 与 Xposed 版本；README 仅保留三项功能、安装升级及已知问题。
 
 ### v3.1.0 · 2026-10-30 · 正式版
 
@@ -374,10 +375,11 @@
 
 ## English
 
-### Unreleased
+### v3.1.1-rc.1 · 2026-10-31 · Prerelease
 
 - Unifies all nine static targets by adding the six missing Super-wallpaper packages to `scope.list`, retaining `staticScope=true`, and aligning the declaration with restart targets and package visibility.
 - Uses the same static targets for module runtime status, including child processes, without counting unrelated apps with similar package prefixes; updates both READMEs and adds scope-consistency regression coverage.
+- Generates version metadata from one source and checks both Android and Xposed versions inside the APK. READMEs now cover only the three features, installation, upgrades and known issues.
 
 ### v3.1.0 · 2026-10-30 · Stable
 

@@ -2,128 +2,47 @@
 
 [中文](README.md) · [English](README_EN.md)
 
-面向 HyperOS 3/4 的自由窗口边界与锁屏玻璃时钟模块。项目使用 Kotlin、Jetpack Compose、MIUIX 和 Modern LibXposed API 102，改善自由窗口拖动体验，并在不支持玻璃时钟的场景下强制使用锁屏玻璃时钟。
+适用于 HyperOS 3/4 的自由窗口、锁屏玻璃时钟与超级壁纸景深模块。
 
-> 当前正式版：**v3.1.0**（versionCode：**20261095**）。
-> [下载 v3.1.0](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.1.0) · [发布说明与已知问题](releases/v3.1.0.md) · [查看更新日志](CHANGELOG.md)
+[下载正式版 v3.1.0](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.1.0) · [下载预发布版 v3.1.1-rc.1](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.1.1-rc.1) · [更新日志](CHANGELOG.md)
 
-## 主要功能
+## 功能
 
-- 为 HyperOS 3 自由窗口提供可配置的最小可见边缘距离。
-- 对横向拖动、稳定偏移、动画目标和最终窗口边界进行针对性处理。
-- 采用 Modern LibXposed API 102，使用静态作用域运行。
-- Hook 前校验类名、方法名、参数类型和返回类型；不匹配时保持系统原行为并写入诊断日志。
-- 支持 Hook 热重载，并在关键路径提供限频日志，方便定位不同 HyperOS 构建差异。
-- 提供首页、配置、设置三个一级页面；全部外观选项位于设置下的二级页，模块说明与关于也有独立入口。
-- 首页仅显示当前超级壁纸版本，其余收入“更多”；重启弹窗可组合选择九个作用域，逐项核对进程退出并最后处理 SystemUI，未运行项单独报告。
-- 配置页支持自由窗口边界保护、强制使用玻璃时钟开关、8–2000px 边缘距离、精细调节和恢复默认；外观页支持深浅主题、系统 Monet、色彩风格与色彩规范。
-- 支持悬浮底栏、液态玻璃效果、导航栏状态角标和预测性返回手势。
-- 针对息屏与锁屏编辑的 all-in-one 时钟，在不支持玻璃时钟的场景下强制使用锁屏玻璃时钟；静态壁纸与其它模板保持系统原行为。
-- 在动态壁纸切换及锁屏转入 AOD 时保留玻璃时钟与有效景深遮罩，避免时钟短暂恢复为未遮挡状态。
-- 为超级壁纸接入真实渲染深度，使用单壁纸遮罩实现锁屏时钟遮挡；接收端自动续期，已验证雪山渲染入口支持进程重建恢复，普通壁纸继续使用系统原行为。
-- 模块未激活时仍可进入设置页；边缘调节区域会置灰，点击会提示“模块未激活”。
-- 自由窗口边界保护使用独立二级设置页：顶部总开关控制边缘距离与精细调节，关闭时下方控件会灰显并停止响应。
-- 设置页和二级设置页的功能图标跟随 MIUIX 主题主色，在启用 Monet 时同步使用壁纸动态颜色。
-- 开启强制使用玻璃时钟前显示功耗与材质限制确认弹窗，确认后才会写入配置。
+1. **自由窗口边界保护**：调整窗口拖到屏幕边缘时保留的最小可见距离，范围为 8–2000px，默认为 196px。
+2. **锁屏玻璃时钟**：在适配的锁屏场景中启用系统原本限制的玻璃时钟，可能增加功耗，部分数字材质不适用。
+3. **超级壁纸景深**：让锁屏时钟被超级壁纸中的前景遮挡。目前主要在雪山壁纸上验证，其他壁纸和系统版本的效果可能不同。
 
-## 兼容性
+## 使用要求
 
-| 项目 | 要求 |
-| --- | --- |
-| 系统 | HyperOS 3/4（目标环境为 HyperOS 4） |
-| 最低 Android | Android 12（API 31） |
-| Hook 框架 | 支持 Modern LibXposed API 102 的管理器 |
-| 静态作用域（9 项） | `com.android.systemui`、`com.miui.aod`、`com.miui.miwallpaper`、`com.miui.miwallpaper.moon`、`com.miui.miwallpaper.snowmountain`、`com.miui.miwallpaper.geometry`、`com.miui.miwallpaper.saturn`、`com.miui.miwallpaper.earth`、`com.miui.miwallpaper.mars` |
-| 构建工具 | JDK 21、Android SDK 37、NDK r27b、Gradle Wrapper |
+- HyperOS 3/4，Android 12 或更高版本。
+- 已安装并启用支持 Modern LibXposed API 102 的框架。
+- 功能适配取决于具体系统版本，不保证所有 HyperOS 机型均可使用。
 
-不同 HyperOS 小版本可能调整类名或方法签名。模块会在运行时进行严格匹配，未匹配的规则不会强行注入。
+## 安装与使用
 
-## 安装与启用
+1. 下载 APK 并安装，在 LSPosed 中启用模块。
+2. 打开模块，在“配置”中开启所需功能。
+3. 按首页提示重启相关作用域，使模块及配置生效。
 
-1. 从 [v3.1.0 正式版](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.1.0) 下载 APK，并阅读发布说明中的兼容性与已知问题。
-2. 使用支持 Modern LibXposed API 102 的模块管理器安装 APK。
-3. 在 LSPosed 中启用模块。本模块统一使用上述九项静态作用域：`META-INF/xposed/scope.list` 声明包名，`module.prop` 中的 `staticScope=true` 限制不能扩展到声明之外的应用，不另设一套推荐应用名单。未安装的超级壁纸无需补装。
-4. 重启设备，或在首页按需重启系统界面、Editor、MiWallpaper、六个具体超级壁纸，亦可一键重启全部静态作用域。
-5. 打开应用首页，确认状态卡显示“工作中”或“待重启”。
+静态作用域包括系统界面、息屏与锁屏编辑、MiWallpaper，以及月球、雪山、几何、土星、地球、火星超级壁纸。未安装的壁纸无需补装。
 
-## 使用说明
+## 升级
 
-### 边缘距离
+v3.1.0、v3.0.2-beta.2 及 CI.94 的同签名版本可覆盖升级。公开 v3.0.0 和部分 Debug 测试包使用不同签名，无法直接覆盖安装；请先保留配置，勿直接卸载或清除数据。
 
-进入配置页的“自由窗口边界保护”后，可在二级页面调整“最小可见距离”。该数值控制自由窗口拖到屏幕边缘时保留的最小可见像素，默认值为 `196px`，可调范围为 `8px` 至 `2000px`。精细调节会降低滑条每次拖动的有效步进，适合微调。顶部总开关关闭时，边缘距离区域会灰显并且不可点击。
+预发布版用于测试，正式版用户可继续使用 v3.1.0。每个发布页提供 APK、校验文件和该版本的已知问题。
 
-当模块尚未激活时，设置页仍然可打开，但边缘调节卡片会被禁用；模块激活或待重启后，控件恢复可用。
+## 已知问题
 
-### 功能开关
+- AOD 转入锁屏时，可能短暂出现前景轮廓与时钟遮罩不同步。
+- 整机冷启动及首次解锁前的景深恢复尚未完成验证。
 
-- **自由窗口边界保护**：二级页面的总开关；关闭后系统界面中的自由小窗恢复系统原有行为，边缘距离和精细调节同时停用。
-- **强制使用玻璃时钟**：开启前会提示功耗和数字材质限制；开启后，在不支持玻璃时钟的场景中强制使用锁屏玻璃时钟，关闭后息屏与锁屏编辑恢复系统原有的玻璃时钟限制。
-- **超级壁纸景深**：开启后复用动态视频壁纸的景深安全区和避让矩形，仅对当前超级壁纸生效；修改后请重启系统界面。
-- 开关和边缘距离均写入模块与目标进程共享的配置；修改后请重启对应进程。设置页的“恢复默认配置”会将边缘距离恢复为 `196px` 并关闭所有功能。
+具体限制见[发布说明](releases/v3.1.1-rc.1.md)。
 
-### 主题与底栏
+## 反馈
 
-- 深色模式：跟随系统、浅色、深色。
-- Monet：使用系统壁纸动态色；可选强调色、色彩风格和色彩规范，设置功能图标也会跟随主题主色。
-- 悬浮底栏：可切换普通模式、模糊和液态玻璃效果。
-- 预测性返回：在支持的 Android 版本上启用预测性返回回调。
+提交问题时，请附上机型、HyperOS 和 Android 版本、模块与框架版本，以及复现步骤。涉及景深问题时，请附上转场录像。
 
-## 从源码构建
+## 许可证
 
-Windows PowerShell：
-
-```powershell
-$env:JAVA_HOME = "D:\Program Files\Android\Android Studio\jbr"
-.\gradlew.bat :app:assembleRelease --offline --console=plain
-```
-
-输出文件：
-
-```text
-app/build/outputs/apk/release/app-release.apk
-```
-
-Release 延续已公开的 v3.0.2-beta.2 与 CI.94 签名；GitHub Actions 通过 `LEGACY_RELEASE_KEYSTORE_BASE64` Secret 注入该密钥。公开 v3.0.0 APK 使用另一签名，不能直接覆盖升级到此渠道；此前文档的兼容性承诺已更正。现用密钥仍是历史 Debug keystore，未来迁移长期发布密钥需要独立的升级方案。请先确认版本来源与数据迁移，避免盲目卸载导致配置丢失。
-
-## 个人开发流程
-
-所有开发与发布均在 `main` 完成。推送 `main` 会运行测试、Lint 并生成 CI Debug 工件；验证完成后推送新的带注释 `vX.Y.Z` 标签，才会触发 Release APK 构建和 GitHub Release。Release 缺少既有签名密钥时直接失败；发布附件包含版本命名的 APK、SHA-256 和已知问题。具体步骤见 [个人开发与发布流程](DEVELOPMENT.md)。
-
-## 项目结构
-
-```text
-app/src/main/java/com/freeform/unbounded/
-├─ FreeformHook.kt              # LibXposed 入口与 Hook 安装
-├─ HookProfiles.kt               # 经过签名校验的 Hook 规则
-├─ BoundsPolicy.kt               # 边缘保护与阻尼计算
-├─ ModuleStatusRepository.kt     # 模块/作用域/运行状态
-├─ ConfigRepository.kt           # 跨进程配置读写
-└─ ui/                           # Compose + MIUIX 界面
-```
-
-## 故障排查
-
-- **首页显示未激活**：确认模块已启用，上述九项静态作用域中已安装的目标已应用模块，再重启对应目标进程；未安装或未运行的超级壁纸不要求全部启动。
-- **显示待重启**：模块已安装但目标进程尚未重新加载，按提示重启系统界面或息屏与锁屏编辑。
-- **拖动效果没有变化**：检查当前 HyperOS 构建是否仍使用已知方法签名，并查看 Xposed 日志中的匹配结果。
-- **设置滑条不可用**：模块未激活时这是预期行为；激活或待重启后会自动恢复。
-- **升级后异常**：先关闭旧模块实例并重新启用作用域，再收集日志和系统版本信息。
-
-## 相关项目
-
-- [KernelSU](https://github.com/tiann/KernelSU)：主题、导航和部分界面交互的参考来源。
-- [MIUIX](https://github.com/compose-miuix-ui/miuix)：Compose UI 组件与主题系统。
-- [Modern LibXposed API](https://github.com/libxposed/api)：模块接口。
-- [LSPosed Modern API 官方指南](https://github.com/LSPosed/LSPosed/wiki/Develop-Xposed-Modules-Using-Modern-Xposed-API)：`scope.list` 与 `staticScope` 的定义；[libxposed 官方示例](https://github.com/libxposed/example/tree/master/app/src/main/resources/META-INF/xposed) 展示两者配合使用。
-
-## 许可证与贡献
-
-本项目基于 [GNU Affero General Public License v3.0](LICENSE) 发布。欢迎提交 Issue、兼容性报告和 Pull Request；提交问题时请附上 HyperOS 版本、Android 版本、LibXposed 管理器版本以及相关日志。
-
-## 版本与文档
-
-- [v3.0.0 更新日志](CHANGELOG.md)
-- [GitHub Releases](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases)
-- [English README](README_EN.md)
-
-[返回 English README →](README_EN.md)
+[GNU Affero General Public License v3.0](LICENSE)

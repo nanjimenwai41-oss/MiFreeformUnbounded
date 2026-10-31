@@ -1,83 +1,93 @@
-# 个人开发与发布流程
+# 开发与发布
 
-本项目是个人维护的 Android/Modern LibXposed 模块。一次对话、调试过程或功能修改不等于一个版本；版本只在可复现构建并准备给用户下载时产生。
+## 分支与提交
 
-## 日常开发
+- 在 `main` 开发。开始前检查 `git status`，保留已有改动，再执行 `git pull --ff-only origin main`。
+- 不创建功能分支或其他分支的 worktree。历史分叉时保留双方提交，不强推或重置远程历史。
+- 每个提交只包含一个相关改动，使用 Conventional Commit 前缀。用户要求只提交时不推送；其他情况按任务要求推送。
+- 密钥、设备日志、反编译材料、APK 和本地构建缓存不得提交。
 
-1. 所有操作统一在 `main` 上完成。开始前检查分支和工作区，保留已有改动后使用 `git pull --ff-only origin main` 同步代码；除非用户明确变更规则，不创建开发分支或其他分支的 worktree。仓库元指令见 `AGENTS.md`。
-2. 每完成一个逻辑完整、可独立回退的改动就提交一次。提交信息使用 `feat:`、`fix:`、`refactor:`、`test:`、`docs:`、`build:` 或 `chore:` 前缀，例如 `fix(aod): preserve glass clock effect`。
-3. 把 `main` 推送到 GitHub。每次推送都会运行 CI：版本一致性检查、单元测试、Lint 和 Debug 构建。CI 产生的 Debug APK 只是测试工件，不是正式版本。
-4. 在手机上安装 CI Debug APK 验证功能；需要继续修复时，在 `main` 继续提交，CI 会自动重新构建。日志只能放在本地 Downloads 或被 `.gitignore` 忽略的目录中。
-5. 在提交记录中保留验证结果和必要的决策说明。若需要合入已有旧分支，先备份并保留所有提交，确认已完整合入 `main` 后再清理分支。
+## 本地验证
 
-## 版本和发布
+按改动选择检查，不要求每个提交都重建签名 APK。
 
-版本遵循 Semantic Versioning：修复使用 PATCH，兼容功能使用 MINOR，不兼容变更使用 MAJOR。3.0.2 预发布阶段积累的新增功能以 `3.1.0` 汇总，不直接去掉后缀当作 PATCH。此后的纯修复可用 `3.1.1-ci.1`、`3.1.1-rc.1`，验收后发布 `3.1.1`；每次测试构建不等于一次正式发布。
-
-`versionCode` 是独立、全渠道严格递增的 Android 安装序号，不再解释为日期。从 `20261095` 继续逐次加一；跨天、跨月和切换 CI/beta/正式渠道均不重置、不复用，且不得超过 `2100000000`。三处版本源仍须一致，检查器支持 `--previous-ref` 拒绝版本名回退与安装序号复用。
-
-版本号必须同时更新以下三个位置，并通过脚本校验：
-
-- `app/build.gradle.kts` 的 `versionName` 和 `versionCode`；
-- `app/src/main/java/com/freeform/unbounded/BuildConfig.kt`；
-- `app/src/main/resources/META-INF/xposed/module.prop`。
-
-发布前在 `main` 上完成：
+| 改动 | 提交前检查 |
+| --- | --- |
+| README、发布说明、开发文档 | 本地链接、内容和 `git diff --check` |
+| Python 工具、版本或 CI 策略 | Python 单元测试与相关命令 |
+| Kotlin、资源、Android 清单 | 相关 Kotlin 单元测试；涉及资源、依赖或打包时补充对应构建和 lint |
+| Native 代码 | native 策略测试、对应 Gradle 构建及 `verify-native.py` |
+| 签名、版本生成、发布打包 | 完整发布门禁 |
 
 ```powershell
-python .\tools\verify-version.py
 python -B -m unittest discover -s tools/tests -p 'test_*.py'
-.\gradlew.bat :app\testDebugUnitTest :app\lintRelease :app\assembleRelease --no-daemon --console=plain
-python .\tools\verify-native.py --variant release
-python .\tools\verify-release-apk.py
-powershell -ExecutionPolicy Bypass -File .\tools\export-experiment.ps1 -Label super-depth-glass
+python tools/verify-version.py
+.\gradlew.bat :app:testDebugUnitTest --no-daemon --console=plain
 ```
 
-Gradle 的标准产物仍保留在 `app/build/outputs/apk/release/app-release.apk`。实验导出脚本只复制该文件，在 `experiments/<时间戳>-<标签>/` 生成带时间戳的 APK、SHA-256 和版本清单，不移动或删除标准产物。
+CI 始终检查版本和 Python 工具。纯文档改动不启动 Android 工具链；Android 改动运行单元测试、Debug lint 和 Debug 构建；native 改动增加宿主策略测试。标签只触发发布工作流，不再额外触发日常 CI。
 
-更新中英文 `CHANGELOG.md` 和 README，并在 `releases/vX.Y.Z.md` 编写中英文发布说明，列出新增功能、验证范围与未解决问题。预发布标签生成 GitHub Pre-release，不带后缀的标签生成正式 Release。完整冷启动、单帧等未通过项不得写成已修复。正式发布需要用户明确要求；本次 `3.1.0` 已获授权，已知问题见发布说明。
+代码检查与设备验收分开记录。编译成功不能证明景深恢复、开机恢复或单帧遮挡通过。安装、进程重启和整机重启按用户授权执行；未经明确要求不整机重启。
 
-确认工作区干净、`main` 已同步推送、检查已通过，再创建并推送新的带注释标签：
+## 工具链
 
-```powershell
-python .\tools\verify-version.py --tag v3.1.0 --previous-ref v3.0.2-beta.2
-git tag -a v3.1.0 -m "Release v3.1.0"
-git push origin v3.1.0
+JDK 21、Android SDK 37、NDK `27.1.12297006`，通过仓库 Gradle Wrapper 构建。SDK 在本机 `local.properties` 或 Android 环境变量中配置，不把个人路径写进共享文档。首次构建需要联网；依赖完整时才使用 `--offline`。
+
+APK 使用 Gradle `externalNativeBuild` 的产物。`tools/verify-native.py` 比较 APK 内与当前编译库的 ELF build ID；不手动复制 `.so` 到 `jniLibs`。`tools/build-native-depth.ps1` 仅用于独立 native 诊断，不是每次提交的前置步骤。
+
+## 版本
+
+唯一版本源是根目录 `version.properties`：
+
+```properties
+versionName=3.1.1-rc.1
+versionCode=20261096
+releaseChannel=prerelease
 ```
 
-GitHub Actions 检查标签提交属于 `main`，核对版本递增和发布说明，从该标签构建 Release APK，校验实际包名、版本、非 debuggable 状态、既有签名指纹和 native 库，再发布版本命名的 APK 与 `SHA256SUMS.txt`。以 Release 工作流成功、公开附件及其校验通过为完成，不能把 tag 推送成功称为发布完成。不要手动上传 Debug APK，也不要修改已发布标签或附件；失败时先查明阶段，不重写远程标签掩盖问题。
+- Gradle 从该文件设置 Android 版本，并生成 `BuildConfig` 和 APK 内的 Xposed `module.prop`。模板位于 `app/src/main/xposed/module.prop`，不手工维护第二份版本号。
+- 修复递增 PATCH，兼容功能递增 MINOR，不兼容变更递增 MAJOR。预发布使用 `-rc.N` 或 `-beta.N`，正式版不带后缀。
+- `releaseChannel` 为 `prerelease` 或 `stable`，必须与版本后缀一致。发布工作流使用校验后的通道，不把预发布设为 Latest。
+- `versionCode` 是 Android 安装序号，每个分发构建递增，不按日期、月份或通道重置。不能复用已分发的序号，且不得超过 `2100000000`。
+- 普通源码提交不必生成新版本。准备分发时才更新版本。
 
-## 签名注意事项
+## 发布
 
-签名私钥绝不提交到仓库。当前 Gradle 配置在本地存在 `.signing/mifreeform-debug.jks` 时，使用独立 Debug 测试签名；CI 通过 `DEBUG_KEYSTORE_BASE64` 注入它。Release 固定使用 `.signing/mifreeform-release-legacy.jks`，CI 通过 `LEGACY_RELEASE_KEYSTORE_BASE64` 注入，缺失时失败，禁止回退到 Debug 测试签名。不要把 keystore、密码或设备日志写进仓库、Issue 或 CI 输出。
+发布需要用户明确要求。更新版本源、中英文更新日志和 `releases/v<版本>.md`。README 只更新用户需要的版本链接与兼容信息；不写测试门禁、仓库流程、构建路径或 UI 改动清单。
 
-公开 APK 审计确认：v3.0.0 的证书 SHA-256 为 `4d0113699db6a92c72862c7724d3c95aa997c169fa87b1144c6689a190556cfe`；v3.0.2-beta.2、CI.94 与现用 Release 密钥为 `a9154c4652e0077298a58f1f04fe64ea8d8cde328802bb181b712c773522af87`。两者不同，因此不能承诺从公开 v3.0.0 覆盖升级。本次延续 beta.2/CI.94 身份，未再次换钥；不要替换旧附件掩盖历史差异。
-
-现用 Release 密钥仍来源于历史本机 Debug keystore，应离线备份，未来迁移长期生产密钥需要单独方案。当前独立 Debug 测试密钥不能用于 Release。公开证书指纹保存在 `tools/release-certificate.sha256`，仅指纹可提交，私钥仍禁止提交。
-
-首次配置 GitHub Actions Secret 时，在 PowerShell 中将对应文件转为 Base64 后粘贴到仓库的 Settings -> Secrets and variables -> Actions：
+先运行本次改动所需的本地验证。完整发布门禁由标签工作流执行：
 
 ```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes('.signing\mifreeform-debug.jks')) | Set-Clipboard
-[Convert]::ToBase64String([IO.File]::ReadAllBytes('.signing\mifreeform-release-legacy.jks')) | Set-Clipboard
+python -B -m unittest discover -s tools/tests -p 'test_*.py'
+python tools/verify-version.py --tag v3.1.1-rc.1 --previous-ref v3.1.0
+.\gradlew.bat :app:testDebugUnitTest :app:lintRelease :app:assembleRelease --no-daemon --console=plain
+python tools/verify-native.py --variant release
+python tools/verify-release-apk.py
 ```
 
-依次保存为 `DEBUG_KEYSTORE_BASE64` 和 `LEGACY_RELEASE_KEYSTORE_BASE64`；命令只复制到剪贴板，不会写入 Git。
+版本生成、签名和打包发生变化时，本地也执行这组完整门禁。其他改动无需在本地与 CI 重复全部检查。实验导出是可选操作，`tools/export-experiment.ps1` 只复制标准 APK，不移动或删除原文件。
 
-## 常用命令
+发布基准来自 GitHub 的已公开发布记录：排除草稿、当前标签和不属于当前提交历史的标签，再按语义版本选择前一个发布。版本检查兼容历史标签中原有的 Gradle 版本定义，不按标签字符串排序猜测基准。
+
+工作区干净且检查通过后，在 `main` 提交并推送，再创建带注释标签：
 
 ```powershell
-# 查看本地状态
-git status
-
-# 推送 main，触发 CI
 git push origin main
-
-# 只构建 Debug 测试包
-.\gradlew.bat :app\assembleDebug --no-daemon --console=plain
-
-# 查看可用 Gradle 任务
-.\gradlew.bat tasks --all
+git tag -a v3.1.1-rc.1 -m "Pre-release v3.1.1-rc.1"
+git push origin v3.1.1-rc.1
 ```
 
-更多背景：本仓库按用户要求统一在 `main` 开发，持续提交并通过 CI 验证；Android 官方建议使用 Gradle Wrapper 构建；GitHub Release 由 Git tag 指向固定源码点；Keep a Changelog 用于维护人工整理的版本变更，不能用完整 Git 日志代替。
+工作流检查标签属于 `main`，核对发布基准和版本，运行单元测试、lint、Release 构建及 APK 校验，再发布版本命名的 APK 和 `SHA256SUMS.txt`。工作流成功、发布类型正确且公开附件校验通过才算发布完成。失败时修正原因并重跑；不移动已公开标签或替换既有附件。
+
+## 签名
+
+- Debug 使用 `.signing/mifreeform-debug.jks`，CI 从 `DEBUG_KEYSTORE_BASE64` 注入。不要用 Debug 包覆盖正式签名包。
+- Release 固定使用 `.signing/mifreeform-release-legacy.jks`，CI 从 `LEGACY_RELEASE_KEYSTORE_BASE64` 注入；缺失时失败，不回退到 Debug 密钥。
+- `tools/release-certificate.sha256` 保存公开证书指纹。密钥、密码和 Secret 不得出现在提交、日志或 Issue 中。
+- 公开 v3.0.0 与 v3.0.2-beta.2/CI.94/3.1.x 的签名不同，不能承诺跨渠道覆盖升级。现用 Release 身份保留不变；生产密钥迁移须另定方案并保留历史附件。
+
+## 文档与代码
+
+共享规则写入已提交的 `AGENTS.md` 和本文件；`CLAUDE.md` 仅保留入口。`.agentdocs/` 保存具体任务和设备验收记录，不作为另一套通用发布规范。
+
+文档、注释和提交信息直接说明行为、原因及限制。不写夸张评价、工作汇报式段落或无依据的兼容承诺。README 只向普通用户介绍三项核心功能：自由窗口边界保护、锁屏玻璃时钟、超级壁纸景深。

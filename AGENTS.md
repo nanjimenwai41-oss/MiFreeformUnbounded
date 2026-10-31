@@ -14,6 +14,13 @@
 - 根据改动运行必要的验证，并如实说明无法执行或未通过的检查；日常流程参见 `DEVELOPMENT.md` 和 `DEVELOPMENT_EN.md`。
 - 密钥、签名文件、设备日志和本地构建产物不得提交；遵守 `.gitignore`。
 
+## 开发与文档
+
+- 通用验证与发布规范以已提交的 `DEVELOPMENT.md` 为准；按改动范围选择本地检查，发布门禁由标签工作流执行。
+- 版本只维护根目录 `version.properties`，不手改生成的 `BuildConfig` 或 APK 内的 Xposed 元数据。
+- README 面向普通用户，仅介绍自由窗口边界保护、锁屏玻璃时钟、超级壁纸景深三项功能；不加入开发流程、构建细节或 UI 改动清单。
+- 文档、代码注释和提交信息直接说明行为、原因及限制，不写夸张评价、过程汇报或无依据的兼容承诺。
+
 ## 当前八项任务与 codex-auto-review（2026-10-29）
 
 - 所有 codex-auto-review 均须完整保留并逐项核对 `.agentdocs/workflow/261029-ui-restart-depth.md` 的八项清单，不得因上下文压缩遗漏；区分代码验证与真机验收。
