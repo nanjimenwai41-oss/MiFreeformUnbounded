@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""Verify that Gradle, BuildConfig, module.prop, and an optional tag agree."""
+"""校验单一版本源、发布标签及已发布祖先版本。"""
 
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+from version_metadata import read_version, parse_properties
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,6 +47,30 @@ def verify_upgrade(name: str, code: str, previous_name: str, previous_code: str)
         raise ValueError(f"Version {name} must follow {previous_name}")
 
 
+def validate_channel(name: str, channel: str) -> None:
+    expected = "stable" if semver_key(name)[3] else "prerelease"
+    if channel != expected:
+        raise ValueError(f"releaseChannel must be {expected!r} for {name}")
+
+
+def select_previous_release(releases: list, current_tag: str, is_ancestor) -> str:
+    records = [record for page in releases for record in (page if isinstance(page, list) else [page])]
+    candidates = []
+    for record in records:
+        tag = record.get("tag_name", "")
+        if record.get("draft") or not record.get("published_at") or tag == current_tag or not tag.startswith("v"):
+            continue
+        try:
+            key = semver_key(tag[1:])
+        except ValueError:
+            continue
+        if is_ancestor(tag):
+            candidates.append((key, tag))
+    if not candidates:
+        raise ValueError("No published ancestor release found")
+    return max(candidates)[1]
+
+
 def read(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")
@@ -51,52 +78,21 @@ def read(path: Path) -> str:
         raise SystemExit(f"Cannot read {path}: {exc}") from exc
 
 
-def one(pattern: str, text: str, label: str) -> str:
-    match = re.search(pattern, text)
-    if not match:
-        raise SystemExit(f"Missing {label}")
-    return match.group(1)
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tag", help="Optional release tag, for example v3.0.0")
-    parser.add_argument("--previous-ref", help="Require an upgrade over this existing Git ref")
+    baseline = parser.add_mutually_exclusive_group()
+    baseline.add_argument("--previous-ref", help="Require an upgrade over this existing Git ref")
+    baseline.add_argument("--published-releases", type=Path, help="GitHub published-release JSON, including paginated arrays")
+    parser.add_argument("--json", action="store_true", help="Print version metadata as JSON")
+    parser.add_argument("--github-output", type=Path, help="Write validated publication flags for GitHub Actions")
     args = parser.parse_args()
 
-    gradle = read(ROOT / "app/build.gradle.kts")
-    build_config = read(ROOT / "app/src/main/java/com/freeform/unbounded/BuildConfig.kt")
-    module_prop = read(ROOT / "app/src/main/resources/META-INF/xposed/module.prop")
-
-    version_code = one(r"versionCode\s*=\s*(\d+)", gradle, "Gradle versionCode")
-    version_name = one(
-        r'versionName\s*=\s*"([^\"]+)"',
-        gradle,
-        "Gradle versionName",
-    )
-
-    build_code = one(r"VERSION_CODE:\s*Int\s*=\s*(\d+)", build_config, "BuildConfig VERSION_CODE")
-    build_name = one(
-        r'VERSION_NAME:\s*String\s*=\s*"([^\"]+)"',
-        build_config,
-        "BuildConfig VERSION_NAME",
-    )
-
-    module_code = one(r"(?m)^versionCode=(\d+)\s*$", module_prop, "module.prop versionCode")
-    module_name = one(
-        r"(?m)^version=v([^\r\n]+?)\s*$",
-        module_prop,
-        "module.prop version",
-    )
-
-    versions = {
-        "Gradle": (version_name, version_code),
-        "BuildConfig": (build_name, build_code),
-        "module.prop": (module_name, module_code),
-    }
-    if len({value for value, _ in versions.values()}) != 1 or len({code for _, code in versions.values()}) != 1:
-        details = ", ".join(f"{source}={name} ({code})" for source, (name, code) in versions.items())
-        raise SystemExit(f"Version mismatch: {details}")
+    try:
+        version_name, version_code = read_version(ROOT)
+        channel = parse_properties(read(ROOT / "version.properties"))["releaseChannel"]
+    except (OSError, KeyError, ValueError) as error:
+        raise SystemExit(f"Version metadata error: {error}") from error
 
     if args.tag:
         expected_tag = f"v{version_name}"
@@ -105,18 +101,33 @@ def main() -> int:
 
     try:
         validate_version(version_name, version_code)
-        if args.previous_ref:
-            previous = subprocess.check_output(
-                ["git", "show", f"{args.previous_ref}:app/build.gradle.kts"],
-                cwd=ROOT, text=True, encoding="utf-8",
+        validate_channel(version_name, channel)
+        previous_ref = args.previous_ref
+        if args.published_releases:
+            def is_ancestor(tag: str) -> bool:
+                return subprocess.run(
+                    ["git", "merge-base", "--is-ancestor", tag, "HEAD"], cwd=ROOT,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                ).returncode == 0
+            previous_ref = select_previous_release(
+                json.loads(read(args.published_releases)), args.tag or f"v{version_name}", is_ancestor,
             )
-            previous_name = one(r'versionName\s*=\s*"([^\"]+)"', previous, "previous versionName")
-            previous_code = one(r"versionCode\s*=\s*(\d+)", previous, "previous versionCode")
+        if previous_ref:
+            previous_name, previous_code = read_version(ROOT, previous_ref)
             verify_upgrade(version_name, version_code, previous_name, previous_code)
     except (ValueError, subprocess.CalledProcessError) as error:
         raise SystemExit(f"Version verification failed: {error}") from error
 
-    print(f"Version OK: v{version_name} (versionCode {version_code})")
+    if args.github_output:
+        prerelease = channel == "prerelease"
+        with args.github_output.open("a", encoding="utf-8") as output:
+            output.write(f"prerelease={str(prerelease).lower()}\nlatest={str(not prerelease).lower()}\n")
+    if args.json:
+        print(json.dumps({"versionName": version_name, "versionCode": int(version_code),
+                          "releaseChannel": channel, "prerelease": channel == "prerelease"}))
+    else:
+        print(f"Version OK: v{version_name} (versionCode {version_code})" +
+              (f", previous release {previous_ref}" if previous_ref else ""))
     return 0
 
 

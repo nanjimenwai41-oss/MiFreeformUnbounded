@@ -7,6 +7,9 @@ import os
 import re
 import shutil
 import subprocess
+import zipfile
+
+from version_metadata import read_version, parse_properties
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -34,9 +37,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apk", type=Path, default=ROOT / "app/build/outputs/apk/release/app-release.apk")
     args = parser.parse_args()
-    gradle = (ROOT / "app/build.gradle.kts").read_text(encoding="utf-8")
-    version = re.search(r'versionName\s*=\s*"([^\"]+)"', gradle).group(1)
-    code = re.search(r"versionCode\s*=\s*(\d+)", gradle).group(1)
+    version, code = read_version(ROOT)
     expected_certificate = (ROOT / "tools/release-certificate.sha256").read_text().strip().lower()
     badging = subprocess.check_output([sdk_tool("aapt"), "dump", "badging", str(args.apk)], text=True, encoding="utf-8")
     if not re.search(rf"package: name='com\.freeform\.unbounded' versionCode='{re.escape(code)}' versionName='{re.escape(version)}'", badging):
@@ -47,6 +48,13 @@ def main() -> None:
     digests = re.findall(r"certificate SHA-256 digest:\s*([0-9a-fA-F]+)", certificates)
     if len(digests) != 1 or digests[0].lower() != expected_certificate:
         raise SystemExit("Release APK certificate does not match the published legacy Release identity")
+    with zipfile.ZipFile(args.apk) as apk:
+        metadata = parse_properties(apk.read("META-INF/xposed/module.prop").decode("utf-8"))
+        if (metadata.get("version"), metadata.get("versionCode")) != (f"v{version}", code):
+            raise SystemExit("Packaged Xposed version does not match version.properties")
+        expected_scope = (ROOT / "app/src/main/resources/META-INF/xposed/scope.list").read_text(encoding="utf-8").splitlines()
+        if metadata.get("staticScope") != "true" or apk.read("META-INF/xposed/scope.list").decode("utf-8").splitlines() != expected_scope:
+            raise SystemExit("Packaged static scope does not match source")
     print(f"Release APK OK: v{version} ({code}), non-debuggable, certificate SHA-256 {expected_certificate}")
 
 

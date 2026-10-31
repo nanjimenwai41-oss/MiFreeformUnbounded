@@ -1,7 +1,42 @@
+import java.util.Properties
+import org.gradle.api.tasks.CacheableTask
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.TaskAction
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+@CacheableTask
+abstract class GenerateXposedMetadata : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val templateFile: RegularFileProperty
+
+    @get:Input abstract val moduleVersionName: Property<String>
+    @get:Input abstract val moduleVersionCode: Property<Int>
+    @get:OutputDirectory abstract val outputDirectory: DirectoryProperty
+
+    @TaskAction
+    fun generate() {
+        val target = outputDirectory.file("META-INF/xposed/module.prop").get().asFile
+        target.parentFile.mkdirs()
+        target.writeText(templateFile.get().asFile.readText()
+            .replace("\${versionName}", moduleVersionName.get())
+            .replace("\${versionCode}", moduleVersionCode.get().toString()))
+    }
+}
+
+val moduleVersion = Properties().apply {
+    load(providers.fileContents(rootProject.layout.projectDirectory.file("version.properties")).asText.get().reader())
+}
+val releaseVersionName = moduleVersion.getProperty("versionName")
+val releaseVersionCode = moduleVersion.getProperty("versionCode").toInt()
 
 android {
     namespace = "com.freeform.unbounded"
@@ -16,8 +51,8 @@ android {
         applicationId = "com.freeform.unbounded"
         minSdk = 31
         targetSdk = 37
-        versionCode = 20261095
-        versionName = "3.1.0"
+        versionCode = releaseVersionCode
+        versionName = releaseVersionName
 
         ndk {
             abiFilters += "arm64-v8a"
@@ -72,7 +107,7 @@ android {
     }
     buildFeatures {
         compose = true
-        buildConfig = false
+        buildConfig = true
     }
     packaging {
         jniLibs {
@@ -98,6 +133,19 @@ android {
     lint {
         abortOnError = true
         checkReleaseBuilds = true
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        val metadata = tasks.register<GenerateXposedMetadata>(
+            "generate${variant.name.replaceFirstChar { it.uppercaseChar() }}XposedMetadata"
+        ) {
+            templateFile.set(layout.projectDirectory.file("src/main/xposed/module.prop"))
+            moduleVersionName.set(releaseVersionName)
+            moduleVersionCode.set(releaseVersionCode)
+        }
+        variant.sources.resources?.addGeneratedSourceDirectory(metadata, GenerateXposedMetadata::outputDirectory)
     }
 }
 

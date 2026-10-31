@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -19,6 +23,18 @@ jobs:
 
       - name: Make Gradle Wrapper executable
         run: chmod +x ./gradlew
+
+      - name: Verify published baseline, version, and release notes
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git merge-base --is-ancestor "${GITHUB_SHA}" origin/main
+          python -B -m unittest discover -s tools/tests -p 'test_*.py'
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100" > "$RUNNER_TEMP/published-releases.json"
+          python tools/verify-version.py --tag "${GITHUB_REF_NAME}" \
+            --published-releases "$RUNNER_TEMP/published-releases.json" --github-output "$GITHUB_OUTPUT"
+          test -s "releases/${GITHUB_REF_NAME}.md"
 
       - name: Configure legacy Release signing key
         env:
@@ -44,15 +60,6 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-
-      - name: Verify release tag and version metadata
-        run: |
-          git merge-base --is-ancestor "${GITHUB_SHA}" origin/main
-          python -B -m unittest discover -s tools/tests -p 'test_*.py'
-          previous_tag="$(git tag --list 'v*' --sort=-version:refname | awk -v current="${GITHUB_REF_NAME}" '$0 != current { print; exit }')"
-          test -n "$previous_tag"
-          python tools/verify-version.py --tag "${GITHUB_REF_NAME}" --previous-ref "$previous_tag"
-          test -s "releases/${GITHUB_REF_NAME}.md"
 
       - name: Test native capture and renderer recovery policies
         run: |
@@ -80,15 +87,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          release_flags=()
-          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
-            release_flags+=(--prerelease)
-          else
-            release_flags+=(--latest)
-          fi
           gh release create "${GITHUB_REF_NAME}" \
             release-assets/* \
             --title "MiFreeformUnbounded ${GITHUB_REF_NAME}" \
             --verify-tag \
             --notes-file "releases/${GITHUB_REF_NAME}.md" \
-            "${release_flags[@]}"
+            --prerelease=${{ steps.version.outputs.prerelease }} \
+            --latest=${{ steps.version.outputs.latest }}

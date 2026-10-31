@@ -1,0 +1,8 @@
+minApiVersion=102
+targetApiVersion=102
+staticScope=true
+autoHotReload=false
+version=v${versionName}
+versionCode=${versionCode}
+author=nanjimenwai41-oss
+description=HyperOS freeform boundary, glass clock and Super wallpaper depth module

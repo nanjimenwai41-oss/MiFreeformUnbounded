@@ -12,7 +12,7 @@ class ModuleScopeTest(unittest.TestCase):
     def test_api_102_static_scope_is_enabled(self):
         properties = dict(
             line.split("=", 1)
-            for line in (MAIN / "resources/META-INF/xposed/module.prop")
+            for line in (MAIN / "xposed/module.prop")
             .read_text(encoding="utf-8").splitlines()
             if line and not line.startswith("#")
         )
