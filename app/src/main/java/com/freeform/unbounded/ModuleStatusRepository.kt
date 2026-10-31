@@ -71,14 +71,11 @@ internal object ModuleStatusRepository {
         val targets = runCatching { service.getRunningTargets() }.getOrDefault(emptyList())
         val frameworkName = runCatching { service.frameworkName }.getOrDefault("")
         val frameworkVersion = runCatching { service.frameworkVersion }.getOrDefault("")
-        // staticScope=true and module.prop own the target list. There is no
-        // user-maintained LSPosed recommendation scope to validate here.
+        // scope.list 声明固定目标，module.prop 的 staticScope=true 限制作用域边界。
+        // 运行状态只核对这些静态作用域，不另外维护推荐应用列表。
         val scopeEnabled = true
         val currentTargets = targets.filter { target ->
-            target.processName in REQUIRED_TARGETS ||
-                target.processName.contains("systemui", ignoreCase = true) ||
-                target.processName.contains("miui.aod", ignoreCase = true) ||
-                target.processName.contains("miwallpaper", ignoreCase = true)
+            RestartScopes.containsProcess(target.processName)
         }
         val active = currentTargets.any { it.state == HookedTarget.State.UP_TO_DATE }
         val pendingRestart = !active
@@ -97,6 +94,4 @@ internal object ModuleStatusRepository {
             },
         )
     }
-
-    private val REQUIRED_TARGETS = setOf("com.android.systemui", "com.miui.aod", "com.miui.miwallpaper")
 }

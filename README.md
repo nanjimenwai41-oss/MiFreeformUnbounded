@@ -33,7 +33,7 @@
 | 系统 | HyperOS 3/4（目标环境为 HyperOS 4） |
 | 最低 Android | Android 12（API 31） |
 | Hook 框架 | 支持 Modern LibXposed API 102 的管理器 |
-| 静态作用域 | `com.android.systemui`、`com.miui.aod`、`com.miui.miwallpaper` |
+| 静态作用域（9 项） | `com.android.systemui`、`com.miui.aod`、`com.miui.miwallpaper`、`com.miui.miwallpaper.moon`、`com.miui.miwallpaper.snowmountain`、`com.miui.miwallpaper.geometry`、`com.miui.miwallpaper.saturn`、`com.miui.miwallpaper.earth`、`com.miui.miwallpaper.mars` |
 | 构建工具 | JDK 21、Android SDK 37、NDK r27b、Gradle Wrapper |
 
 不同 HyperOS 小版本可能调整类名或方法签名。模块会在运行时进行严格匹配，未匹配的规则不会强行注入。
@@ -42,7 +42,7 @@
 
 1. 从 [v3.1.0 正式版](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.1.0) 下载 APK，并阅读发布说明中的兼容性与已知问题。
 2. 使用支持 Modern LibXposed API 102 的模块管理器安装 APK。
-3. 本模块使用固定静态作用域，目标由模块声明自动管理，不需要在 LSPosed 中维护推荐应用列表。
+3. 在 LSPosed 中启用模块。本模块统一使用上述九项静态作用域：`META-INF/xposed/scope.list` 声明包名，`module.prop` 中的 `staticScope=true` 限制不能扩展到声明之外的应用，不另设一套推荐应用名单。未安装的超级壁纸无需补装。
 4. 重启设备，或在首页按需重启系统界面、Editor、MiWallpaper、六个具体超级壁纸，亦可一键重启全部静态作用域。
 5. 打开应用首页，确认状态卡显示“工作中”或“待重启”。
 
@@ -103,7 +103,7 @@ app/src/main/java/com/freeform/unbounded/
 
 ## 故障排查
 
-- **首页显示未激活**：确认三个静态作用域均已启用，并重启设备或对应目标进程。
+- **首页显示未激活**：确认模块已启用，上述九项静态作用域中已安装的目标已应用模块，再重启对应目标进程；未安装或未运行的超级壁纸不要求全部启动。
 - **显示待重启**：模块已安装但目标进程尚未重新加载，按提示重启系统界面或息屏与锁屏编辑。
 - **拖动效果没有变化**：检查当前 HyperOS 构建是否仍使用已知方法签名，并查看 Xposed 日志中的匹配结果。
 - **设置滑条不可用**：模块未激活时这是预期行为；激活或待重启后会自动恢复。
@@ -114,6 +114,7 @@ app/src/main/java/com/freeform/unbounded/
 - [KernelSU](https://github.com/tiann/KernelSU)：主题、导航和部分界面交互的参考来源。
 - [MIUIX](https://github.com/compose-miuix-ui/miuix)：Compose UI 组件与主题系统。
 - [Modern LibXposed API](https://github.com/libxposed/api)：模块接口。
+- [LSPosed Modern API 官方指南](https://github.com/LSPosed/LSPosed/wiki/Develop-Xposed-Modules-Using-Modern-Xposed-API)：`scope.list` 与 `staticScope` 的定义；[libxposed 官方示例](https://github.com/libxposed/example/tree/master/app/src/main/resources/META-INF/xposed) 展示两者配合使用。
 
 ## 许可证与贡献
 

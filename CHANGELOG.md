@@ -4,6 +4,11 @@
 
 ## 中文
 
+### 未发布
+
+- 统一九项静态作用域，补齐 `scope.list` 中遗漏的六个超级壁纸包；保留 `staticScope=true`，与重启目标和包可见性声明一致。
+- 模块运行状态按同一份静态目标识别主进程和子进程，避免把包名前缀相似的无关应用误判为已激活；同步中英文说明并补充声明一致性回归测试。
+
 ### v3.1.0 · 2026-10-30 · 正式版
 
 - 汇总 3.0.2 预发布期间的超级壁纸景深与玻璃时钟适配、九作用域重启，以及首页、配置、设置和二级外观页改进。新增功能按语义化版本以 MINOR 发布，不将此批改动标为 PATCH。
@@ -368,6 +373,11 @@
 - 某些设备需要完整重启，而不是仅重启 SystemUI，才能重新加载静态作用域。
 
 ## English
+
+### Unreleased
+
+- Unifies all nine static targets by adding the six missing Super-wallpaper packages to `scope.list`, retaining `staticScope=true`, and aligning the declaration with restart targets and package visibility.
+- Uses the same static targets for module runtime status, including child processes, without counting unrelated apps with similar package prefixes; updates both READMEs and adds scope-consistency regression coverage.
 
 ### v3.1.0 · 2026-10-30 · Stable
 

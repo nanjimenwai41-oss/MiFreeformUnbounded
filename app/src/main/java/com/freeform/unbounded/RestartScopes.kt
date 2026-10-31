@@ -1,6 +1,6 @@
 package com.freeform.unbounded
 
-/** 首页重启与设备版本信息共用的静态作用域。 */
+/** 首页重启、设备版本信息与模块运行状态共用的静态作用域。 */
 internal data class RestartScope(
     val id: String,
     val label: String,
@@ -21,6 +21,10 @@ internal object RestartScopes {
 
     val wallpapers = listOf(MOON, SNOW_MOUNTAIN, GEOMETRY, SATURN, EARTH, MARS)
     val allStatic = listOf(SYSTEM_UI, AOD, MI_WALLPAPER) + wallpapers
+
+    /** 子进程仍归属同一包，不能把包名前缀相似的其他应用算作静态作用域。 */
+    fun containsProcess(processName: String): Boolean =
+        allStatic.any { it.packageName == processName.substringBefore(':') }
 
     fun currentWallpapers(current: RestartScope?): Set<RestartScope> =
         setOf(MI_WALLPAPER) + listOfNotNull(current?.takeIf { it in wallpapers })

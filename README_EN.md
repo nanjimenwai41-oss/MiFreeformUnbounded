@@ -32,7 +32,7 @@ A freeform-window boundary and lock-screen glass-clock module for HyperOS 3/4. I
 | System | HyperOS 3/4 (HyperOS 4 target) |
 | Minimum Android | Android 12 (API 31) |
 | Hook framework | A manager supporting Modern LibXposed API 102 |
-| Static scope | `com.android.systemui`, `com.miui.aod`, `com.miui.miwallpaper` |
+| Static scope (9 targets) | `com.android.systemui`, `com.miui.aod`, `com.miui.miwallpaper`, `com.miui.miwallpaper.moon`, `com.miui.miwallpaper.snowmountain`, `com.miui.miwallpaper.geometry`, `com.miui.miwallpaper.saturn`, `com.miui.miwallpaper.earth`, `com.miui.miwallpaper.mars` |
 | Build toolchain | JDK 21, Android SDK 37, NDK r27b, Gradle Wrapper |
 
 HyperOS minor releases may rename classes or change method signatures. The module intentionally performs strict matching and skips incompatible rules instead of forcing an unsafe hook.
@@ -41,7 +41,7 @@ HyperOS minor releases may rename classes or change method signatures. The modul
 
 1. Download the APK from the [v3.1.0 stable release](https://github.com/nanjimenwai41-oss/MiFreeformUnbounded/releases/tag/v3.1.0) and read its compatibility notes and known issues.
 2. Install it with a module manager that supports Modern LibXposed API 102.
-3. The module uses a fixed static scope whose targets are declared by the module; no recommended-app list needs to be maintained in LSPosed.
+3. Enable the module in LSPosed. All nine targets above use one static scope: `META-INF/xposed/scope.list` declares the packages, and `staticScope=true` in `module.prop` prevents extending the scope beyond that declaration. There is no separate recommended-app list. Super wallpapers that are not installed do not need to be installed.
 4. Reboot the device, or use the Home actions to restart System UI, Editor, MiWallpaper, any of the six concrete Super wallpapers, or all static scopes.
 5. Open the app and verify that the status card reports Working or Pending restart.
 
@@ -102,7 +102,7 @@ app/src/main/java/com/freeform/unbounded/
 
 ## Troubleshooting
 
-- **The home page says inactive**: verify all three static scopes and reboot the device or the corresponding target process.
+- **The home page says inactive**: verify that the module is enabled and applied to installed targets from the nine-package static scope, then restart the corresponding processes. Uninstalled or inactive Super wallpapers do not all need to run.
 - **The page says pending restart**: the module is installed, but the target process has not reloaded yet.
 - **Dragging is unchanged**: check whether the current HyperOS build still exposes a known method signature and inspect Xposed logs.
 - **The slider is disabled**: this is expected while the module is inactive; it is restored after activation or pending restart.
@@ -113,6 +113,7 @@ app/src/main/java/com/freeform/unbounded/
 - [KernelSU](https://github.com/tiann/KernelSU): reference for theme, navigation, and selected UI interactions.
 - [MIUIX](https://github.com/compose-miuix-ui/miuix): Compose UI components and theme system.
 - [Modern LibXposed API](https://github.com/libxposed/api): module API.
+- [Official LSPosed modern API guide](https://github.com/LSPosed/LSPosed/wiki/Develop-Xposed-Modules-Using-Modern-Xposed-API): definitions of `scope.list` and `staticScope`; the [official libxposed example](https://github.com/libxposed/example/tree/master/app/src/main/resources/META-INF/xposed) shows how they work together.
 
 ## License and contributions
 
